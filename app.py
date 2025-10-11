@@ -61,7 +61,7 @@ def update_charts(n_intervals, bin_size):
             plot_bgcolor='#0f172a',
             margin=dict(l=40, r=40, t=40, b=40)
         )
-        return empty_fig, empty_fig, str(bin_size)
+        return empty_fig, empty_fig, f"{bin_size} USD"
     
     # Calculate binned profile
     bins = orderbook.calculate_binned_profile(
@@ -76,63 +76,126 @@ def update_charts(n_intervals, bin_size):
     bid_bins = [b for b in bins if b['side'] == 'bid']
     ask_bins = [b for b in bins if b['side'] == 'ask']
     
-    # Create order book figure
+    # Create order book figure (VERTICAL BARS with width=volume, height=bin_size)
     orderbook_fig = go.Figure()
     
-    # Add bid bars (green, pointing left)
-    if bid_bins:
+    # Combine all bins to find max size for scaling
+    all_bins = bid_bins + ask_bins
+    max_size = max([b['size'] for b in all_bins]) if all_bins else 1
+    
+    # Add individual rectangles for each bin (bids in green, asks in red)
+    for b in bid_bins:
+        # Bar width proportional to size, bar height = bin_size
+        # Bars extend from left edge (x=0) to right (x=size) toward price chart
         orderbook_fig.add_trace(go.Bar(
-            y=[b['price'] for b in bid_bins],
-            x=[-b['size'] for b in bid_bins],  # Negative for left direction
+            x=[b['size']],  # Positive width (extends right toward chart)
+            y=[b['price']],
             orientation='h',
-            name='Bids',
+            width=bin_size,  # Height of horizontal bar = bin size
             marker_color='#16a34a',
-            opacity=0.9
+            opacity=0.8,
+            showlegend=False,
+            hovertemplate=f"<b>Bid</b><br>Price: {b['price']:.2f}<br>Size: {b['size']:.4f}<extra></extra>"
         ))
     
-    # Add ask bars (red, pointing left)
-    if ask_bins:
+    for b in ask_bins:
         orderbook_fig.add_trace(go.Bar(
-            y=[b['price'] for b in ask_bins],
-            x=[-b['size'] for b in ask_bins],  # Negative for left direction
+            x=[b['size']],  # Positive width (extends right toward chart)
+            y=[b['price']],
             orientation='h',
-            name='Asks',
+            width=bin_size,  # Height of horizontal bar = bin size
             marker_color='#ef4444',
-            opacity=0.9
+            opacity=0.8,
+            showlegend=False,
+            hovertemplate=f"<b>Ask</b><br>Price: {b['price']:.2f}<br>Size: {b['size']:.4f}<extra></extra>"
         ))
+    
+    # Add legend traces (invisible, just for legend)
+    orderbook_fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', 
+                                       marker=dict(size=10, color='#16a34a'), 
+                                       showlegend=True, name='Bids'))
+    orderbook_fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', 
+                                       marker=dict(size=10, color='#ef4444'), 
+                                       showlegend=True, name='Asks'))
     
     orderbook_fig.update_layout(
         template='plotly_dark',
         paper_bgcolor='#0f172a',
         plot_bgcolor='#0f172a',
         showlegend=True,
-        margin=dict(l=60, r=40, t=20, b=40),
-        xaxis=dict(title='Size', autorange='reversed'),  # Reverse x-axis so bars point left
+        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
+        margin=dict(l=60, r=40, t=30, b=60),
         yaxis=dict(title='Price (USD)'),
-        barmode='overlay'
+        xaxis=dict(title='Size', autorange='reversed', side='top'),  # Reverse axis so bars extend left from right edge
+        barmode='overlay',
+        bargap=0
     )
     
-    # Create placeholder price chart
-    price_fig = go.Figure()
-    price_fig.add_trace(go.Scatter(
-        x=[snapshot['timestamp']],
-        y=[snapshot['mid_price']],
-        mode='markers',
-        name='Mid Price',
-        marker=dict(color='#0ea5e9', size=8)
-    ))
+    # Calculate Y-axis range from order book bins for alignment
+    if all_bins:
+        prices_in_bins = [b['price'] for b in all_bins]
+        y_min = min(prices_in_bins) - bin_size  # Add padding
+        y_max = max(prices_in_bins) + bin_size
+    else:
+        # Fallback to mid price ± 2%
+        y_min = snapshot['mid_price'] * 0.98
+        y_max = snapshot['mid_price'] * 1.02
     
-    price_fig.update_layout(
-        template='plotly_dark',
-        paper_bgcolor='#0f172a',
-        plot_bgcolor='#0f172a',
-        showlegend=False,
-        margin=dict(l=60, r=40, t=20, b=40),
-        xaxis=dict(title='Time'),
-        yaxis=dict(title='Price (USD)')
-    )
+    # Create price chart with 5-minute history
+    # Fetch last 5 minutes of data
+    current_time = int(time.time() * 1000)
+    five_min_ago = current_time - (5 * 60 * 1000)
     
-    return orderbook_fig, price_fig, str(bin_size)
+    historical_data = db.get_snapshots_range("BTCUSDT", five_min_ago, current_time)
+    
+    if historical_data:
+        from datetime import datetime as dt
+        timestamps = [dt.fromtimestamp(d['timestamp'] / 1000) for d in historical_data]
+        prices = [d['mid_price'] for d in historical_data]
+        
+        price_fig = go.Figure()
+        price_fig.add_trace(go.Scatter(
+            x=timestamps,
+            y=prices,
+            mode='lines+markers',
+            name='Mid Price',
+            line=dict(color='#0ea5e9', width=2),
+            marker=dict(size=4)
+        ))
+        
+        price_fig.update_layout(
+            template='plotly_dark',
+            paper_bgcolor='#0f172a',
+            plot_bgcolor='#0f172a',
+            showlegend=False,
+            margin=dict(l=60, r=40, t=20, b=60),
+            xaxis=dict(title='Time'),
+            yaxis=dict(title='Price (USD)', range=[y_min, y_max]),  # Align with order book
+            hovermode='x unified'
+        )
+    else:
+        # Fallback to single point if no history yet
+        price_fig = go.Figure()
+        from datetime import datetime as dt
+        price_fig.add_trace(go.Scatter(
+            x=[dt.fromtimestamp(snapshot['timestamp'] / 1000)],
+            y=[snapshot['mid_price']],
+            mode='markers',
+            name='Mid Price',
+            marker=dict(color='#0ea5e9', size=8)
+        ))
+        
+        price_fig.update_layout(
+            template='plotly_dark',
+            paper_bgcolor='#0f172a',
+            plot_bgcolor='#0f172a',
+            showlegend=False,
+            margin=dict(l=60, r=40, t=20, b=60),
+            xaxis=dict(title='Time'),
+            yaxis=dict(title='Price (USD)', range=[y_min, y_max])  # Align with order book
+        )
+    
+    return orderbook_fig, price_fig, f"{bin_size} USD"
 
 
 @app.callback(

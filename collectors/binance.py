@@ -65,7 +65,6 @@ def start_collection(
                 
                 if bids and asks:
                     callback(symbol, timestamp_ms, bids, asks, mid_price)
-                    print(f"[{symbol}] Collected snapshot at {timestamp_ms}, mid: {mid_price:.2f}")
                 else:
                     print(f"[{symbol}] Failed to fetch data, retrying...")
                 
