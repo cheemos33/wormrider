@@ -4,7 +4,7 @@ BINANCE_WS_URL = "wss://fstream.binance.com/ws"
 BINANCE_REST_URL = "https://fapi.binance.com"
 
 # Data collection
-SAMPLE_INTERVAL_SECONDS = 1  # Sample every 1s (changed from 10s for real-time)
+SAMPLE_INTERVAL_SECONDS = 5  # Sample every 5s (avoid Binance rate limit)
 ORDERBOOK_DEPTH_LIMIT = 1000  # Top 1000 levels
 
 # Storage

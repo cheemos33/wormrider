@@ -4,4 +4,6 @@ pandas
 websockets
 httpx
 python-dateutil
+numpy
+websocket-client
 
