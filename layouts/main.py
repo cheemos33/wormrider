@@ -10,7 +10,7 @@ def create_layout():
         # Header
         html.Div([
             html.H1("wormrider - BTCUSDT", style={'margin': '10px', 'color': '#e5e7eb', 'flex': '1'}),
-            html.Div(id='refresh-countdown', children='Auto-refresh in: 10s',
+            html.Div(id='refresh-countdown', children='Auto-refresh: 1.0s',
                     style={'margin': '10px', 'color': '#9ca3af', 'fontSize': '12px'}),
         ], style={'background': '#1f2937', 'padding': '10px', 'borderRadius': '8px', 'marginBottom': '10px', 'display': 'flex', 'alignItems': 'center'}),
         

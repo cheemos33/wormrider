@@ -204,8 +204,10 @@ def update_charts(n_intervals, bin_size):
 )
 def update_countdown(n_intervals):
     """Update countdown display."""
-    seconds_left = config.AUTO_REFRESH_INTERVAL // 1000
-    return f'Auto-refresh in: {seconds_left}s'
+    seconds_left = config.AUTO_REFRESH_INTERVAL / 1000
+    if seconds_left < 1:
+        return f'Auto-refresh: {int(config.AUTO_REFRESH_INTERVAL)}ms'
+    return f'Auto-refresh: {seconds_left:.1f}s'
 
 
 if __name__ == '__main__':
