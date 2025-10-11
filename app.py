@@ -29,7 +29,6 @@ binance.start_collection(
 # Start trades collection
 print("Starting trades collection...")
 def on_trade_received(trade):
-    print(f"[TRADE] {trade['symbol']} @ ${trade['price']} - {'BUY' if trade['is_buy'] else 'SELL'} {trade['quantity']}")
     db.insert_trade(
         symbol=trade['symbol'],
         timestamp=trade['timestamp'],
@@ -157,44 +156,71 @@ def update_dashboard(n_intervals):
         mid_price=snapshot['mid_price']
     )
     
-    # Add wall lines to price chart
-    for wall in walls_data['bid_walls'][:3]:  # Top 3 bid walls
+    # Add wall lines to price chart (thickness proportional to volume)
+    # Calculate max wall size for scaling
+    all_walls = walls_data['bid_walls'] + walls_data['ask_walls']
+    max_wall_size = max([w['size'] for w in all_walls]) if all_walls else 1
+    
+    for wall in walls_data['bid_walls'][:5]:  # Top 5 bid walls
+        # Line width: 1-5 based on wall size
+        line_width = 1 + (wall['size'] / max_wall_size) * 4  # Scale 1-5
+        
         price_fig.add_hline(
             y=wall['price'],
-            line_dash="dash",
+            line_dash="solid",
             line_color="#16a34a",
-            line_width=1,
-            annotation_text=f"BID {wall['size']:.1f}",
-            annotation_position="right"
+            line_width=line_width,
+            annotation_text=f"{wall['size']:.1f}",
+            annotation_position="right",
+            annotation_font_size=10
         )
     
-    for wall in walls_data['ask_walls'][:3]:  # Top 3 ask walls
+    for wall in walls_data['ask_walls'][:5]:  # Top 5 ask walls
+        # Line width: 1-5 based on wall size
+        line_width = 1 + (wall['size'] / max_wall_size) * 4  # Scale 1-5
+        
         price_fig.add_hline(
             y=wall['price'],
-            line_dash="dash",
+            line_dash="solid",
             line_color="#ef4444",
-            line_width=1,
-            annotation_text=f"ASK {wall['size']:.1f}",
-            annotation_position="right"
+            line_width=line_width,
+            annotation_text=f"{wall['size']:.1f}",
+            annotation_position="right",
+            annotation_font_size=10
         )
     
-    # Walls info panel
+    # Walls info panel - Detailed list
     walls_html = []
-    walls_html.append(html.P(f"📊 Total: {walls_data['total_walls']} walls", style={'fontWeight': 'bold'}))
+    walls_html.append(html.P(f"📊 Total Walls: {walls_data['total_walls']}", 
+                            style={'fontWeight': 'bold', 'marginBottom': '10px'}))
     
-    if walls_data['strongest_bid_wall']:
-        wall = walls_data['strongest_bid_wall']
-        walls_html.append(html.P(
-            f"🟢 BID: ${wall['price']:,.2f} ({wall['size']:.1f} BTC) - {wall['asymmetry_ratio']:.1f}x",
-            style={'color': '#16a34a'}
-        ))
+    # BID Walls (sorted by size)
+    if walls_data['bid_walls']:
+        walls_html.append(html.P("🟢 BID WALLS:", 
+                                style={'color': '#16a34a', 'fontWeight': 'bold', 'fontSize': '12px', 'marginTop': '5px'}))
+        for i, wall in enumerate(walls_data['bid_walls'][:10]):  # Top 10
+            distance_pct = ((snapshot['mid_price'] - wall['price']) / snapshot['mid_price']) * 100
+            walls_html.append(html.Div([
+                html.Span(f"#{i+1} ", style={'color': '#9ca3af', 'fontSize': '10px'}),
+                html.Span(f"${wall['price']:,.2f}", style={'color': '#e5e7eb', 'fontWeight': 'bold', 'fontSize': '11px'}),
+                html.Span(f" | {wall['size']:.2f} BTC", style={'color': '#16a34a', 'fontSize': '10px'}),
+                html.Span(f" | {wall['asymmetry_ratio']:.1f}x", style={'color': '#f59e0b', 'fontSize': '10px'}),
+                html.Span(f" | -{distance_pct:.2f}%", style={'color': '#9ca3af', 'fontSize': '9px'})
+            ], style={'marginBottom': '3px', 'fontSize': '11px'}))
     
-    if walls_data['strongest_ask_wall']:
-        wall = walls_data['strongest_ask_wall']
-        walls_html.append(html.P(
-            f"🔴 ASK: ${wall['price']:,.2f} ({wall['size']:.1f} BTC) - {wall['asymmetry_ratio']:.1f}x",
-            style={'color': '#ef4444'}
-        ))
+    # ASK Walls (sorted by size)
+    if walls_data['ask_walls']:
+        walls_html.append(html.P("🔴 ASK WALLS:", 
+                                style={'color': '#ef4444', 'fontWeight': 'bold', 'fontSize': '12px', 'marginTop': '10px'}))
+        for i, wall in enumerate(walls_data['ask_walls'][:10]):  # Top 10
+            distance_pct = ((wall['price'] - snapshot['mid_price']) / snapshot['mid_price']) * 100
+            walls_html.append(html.Div([
+                html.Span(f"#{i+1} ", style={'color': '#9ca3af', 'fontSize': '10px'}),
+                html.Span(f"${wall['price']:,.2f}", style={'color': '#e5e7eb', 'fontWeight': 'bold', 'fontSize': '11px'}),
+                html.Span(f" | {wall['size']:.2f} BTC", style={'color': '#ef4444', 'fontSize': '10px'}),
+                html.Span(f" | {wall['asymmetry_ratio']:.1f}x", style={'color': '#f59e0b', 'fontSize': '10px'}),
+                html.Span(f" | +{distance_pct:.2f}%", style={'color': '#9ca3af', 'fontSize': '9px'})
+            ], style={'marginBottom': '3px', 'fontSize': '11px'}))
     
     # 3. CVD Chart - Last 1 hour
     one_hour_ago = current_time - (60 * 60 * 1000)
