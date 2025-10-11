@@ -26,31 +26,33 @@ def create_layout():
                 )
             ], style={'background': '#0f172a', 'padding': '12px', 'borderRadius': '8px', 'flex': '1', 'marginRight': '10px'}),
             
-            # Right Panel: Order Book Profile (vertical bars)
-            html.Div([
+                # Right Panel: Order Book Profile (vertical bars)
                 html.Div([
-                    html.H3("Order Book Profile", style={'color': '#e5e7eb', 'fontSize': '14px', 'marginBottom': '10px', 'flex': '1'}),
                     html.Div([
-                        html.Label("Bin Size: ", style={'marginRight': '8px', 'color': '#9ca3af', 'fontSize': '12px'}),
-                        html.Span(id='bin-size-display', children=f"{config.DEFAULT_BIN_SIZE} USD", 
-                                 style={'marginRight': '12px', 'color': '#e5e7eb', 'fontWeight': 'bold', 'fontSize': '12px'}),
-                        dcc.Slider(
-                            id='bin-size-slider',
-                            min=config.BIN_SIZE_RANGE[0],
-                            max=config.BIN_SIZE_RANGE[1],
-                            step=10,
-                            value=config.DEFAULT_BIN_SIZE,
-                            marks={
-                                10: '10',
-                                250: '250',
-                                500: '500',
-                                750: '750',
-                                1000: '1000'
-                            },
-                            tooltip={"placement": "bottom", "always_visible": False}
-                        ),
-                    ], style={'display': 'flex', 'alignItems': 'center', 'width': '300px'}),
-                ], style={'display': 'flex', 'alignItems': 'center', 'justifyContent': 'space-between', 'marginBottom': '10px'}),
+                        html.H3("Order Book Profile", style={'color': '#e5e7eb', 'fontSize': '14px', 'marginBottom': '15px'}),
+                        html.Div([
+                            html.Label("Bin Size: ", style={'marginRight': '10px', 'color': '#9ca3af', 'fontSize': '12px'}),
+                            html.Span(id='bin-size-display', children=f"{config.DEFAULT_BIN_SIZE} USD", 
+                                     style={'marginRight': '15px', 'color': '#e5e7eb', 'fontWeight': 'bold', 'fontSize': '12px'}),
+                        ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '15px'}),
+                        html.Div([
+                            dcc.Slider(
+                                id='bin-size-slider',
+                                min=0,
+                                max=100,
+                                step=1,
+                                value=50,  # Logarithmic position for 50 USD
+                                marks={
+                                    0: '10',
+                                    25: '25',
+                                    50: '50',
+                                    75: '150',
+                                    100: '1000'
+                                },
+                                tooltip={"placement": "bottom", "always_visible": False}
+                            )
+                        ], style={'marginBottom': '20px'}),
+                    ], style={'marginBottom': '10px'}),
                 dcc.Graph(
                     id='orderbook-chart',
                     config={'displayModeBar': False},

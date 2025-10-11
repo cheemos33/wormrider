@@ -39,6 +39,31 @@ app.title = "Wormrider"
 app.layout = main.create_layout()
 
 
+def slider_to_bin_size(slider_value):
+    """
+    Convert logarithmic slider position (0-100) to actual bin size (10-1000 USD).
+    
+    Logarithmic scale for smooth control:
+    - 0-40: 10-50 USD (more precision for small bins)
+    - 40-70: 50-200 USD (medium range)
+    - 70-100: 200-1000 USD (coarse for large bins)
+    """
+    import math
+    # Exponential mapping: 10 * (10 ^ (slider/50))
+    # slider=0 → 10, slider=50 → 100, slider=100 → 1000
+    bin_size = 10 * math.pow(10, slider_value / 50)
+    
+    # Round to nice values
+    if bin_size < 50:
+        return round(bin_size / 5) * 5  # Round to nearest 5
+    elif bin_size < 100:
+        return round(bin_size / 10) * 10  # Round to nearest 10
+    elif bin_size < 500:
+        return round(bin_size / 25) * 25  # Round to nearest 25
+    else:
+        return round(bin_size / 50) * 50  # Round to nearest 50
+
+
 @app.callback(
     [Output('orderbook-chart', 'figure'),
      Output('price-chart', 'figure'),
@@ -46,8 +71,11 @@ app.layout = main.create_layout()
     [Input('interval-component', 'n_intervals'),
      Input('bin-size-slider', 'value')]
 )
-def update_charts(n_intervals, bin_size):
+def update_charts(n_intervals, slider_value):
     """Update order book profile and price chart."""
+    
+    # Convert slider position to actual bin size
+    bin_size = slider_to_bin_size(slider_value)
     
     # Fetch latest snapshot
     snapshot = db.get_latest_snapshot("BTCUSDT")
