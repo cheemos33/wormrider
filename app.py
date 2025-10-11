@@ -29,6 +29,7 @@ binance.start_collection(
 # Start trades collection
 print("Starting trades collection...")
 def on_trade_received(trade):
+    print(f"[TRADE] {trade['symbol']} @ ${trade['price']} - {'BUY' if trade['is_buy'] else 'SELL'} {trade['quantity']}")
     db.insert_trade(
         symbol=trade['symbol'],
         timestamp=trade['timestamp'],
@@ -217,16 +218,48 @@ def update_dashboard(n_intervals):
                 fillcolor='rgba(245, 158, 11, 0.1)'
             ))
             
-            cvd_fig.add_annotation(
-                x=timestamps[-1],
-                y=cvd_values[-1],
-                text=f"{cvd_data['slope'].upper()}",
-                showarrow=True,
-                arrowcolor='#16a34a' if cvd_data['slope'] == 'positive' else '#ef4444',
-                font=dict(color='white', size=12),
-                bgcolor='#1f2937',
-                bordercolor='#16a34a' if cvd_data['slope'] == 'positive' else '#ef4444'
-            )
+            # Detect CVD trend segments
+            segments = cvd.detect_cvd_trend_segments(cvd_data['cvd_series'], min_segment_size=10, slope_threshold=0.05)
+            
+            # Draw trendlines for each segment
+            if segments:
+                for segment in segments:
+                    segment_start_dt = dt.fromtimestamp(segment['start_time'] / 1000)
+                    segment_end_dt = dt.fromtimestamp(segment['end_time'] / 1000)
+                    
+                    # Color based on direction
+                    if segment['direction'] == 'upward':
+                        line_color = '#16a34a'  # Green
+                    elif segment['direction'] == 'downward':
+                        line_color = '#ef4444'  # Red
+                    else:
+                        line_color = '#9ca3af'  # Gray
+                    
+                    # Draw trendline
+                    cvd_fig.add_trace(go.Scatter(
+                        x=[segment_start_dt, segment_end_dt],
+                        y=[segment['start_cvd'], segment['end_cvd']],
+                        mode='lines',
+                        name=segment['direction'].capitalize(),
+                        line=dict(color=line_color, width=3, dash='solid'),
+                        showlegend=False,
+                        opacity=0.8
+                    ))
+                
+                # Get current segment status
+                current_segment = segments[-1]
+                current_status = current_segment['direction']
+                
+                # Print current status
+                status_emoji = "📈" if current_status == 'upward' else "📉" if current_status == 'downward' else "↔️"
+                print(f"{status_emoji} [CVD SEGMENT] {current_status.upper()} | Slope: {current_segment['slope']:.4f} | CVD: {cvd_data['current_cvd']:.2f}")
+            else:
+                current_status = 'neutral'
+                print(f"[CVD] Not enough data for segmentation")
+        else:
+            current_status = 'neutral'
+    else:
+        current_status = 'neutral'
     
     cvd_fig.update_layout(
         template='plotly_dark',
@@ -250,27 +283,36 @@ def update_dashboard(n_intervals):
         if setup_alert:
             manager.process_alert(setup_alert)
     
-    # 5. Alerts Panel
-    alerts = manager.get_recent_alerts(limit=5)
+    # 5. Alerts Panel with CVD Status
+    alerts_html = []
+    
+    # Current CVD Trend Status (Top of panel)
+    status_color = '#16a34a' if current_status == 'upward' else '#ef4444' if current_status == 'downward' else '#9ca3af'
+    status_text = "TRENDING UP 📈" if current_status == 'upward' else "TRENDING DOWN 📉" if current_status == 'downward' else "RANGING ↔️"
+    
+    alerts_html.append(html.Div([
+        html.P("CVD Status:", style={'fontSize': '11px', 'color': '#9ca3af', 'marginBottom': '5px'}),
+        html.P(status_text, style={'color': status_color, 'fontWeight': 'bold', 'fontSize': '14px'}),
+    ], style={'padding': '8px', 'background': '#1f2937', 'borderRadius': '5px', 'marginBottom': '10px'}))
+    
+    # Wall Trap Alerts
+    alerts = manager.get_recent_alerts(limit=3)
     
     if alerts:
-        alerts_html = []
+        alerts_html.append(html.P("Wall Trap Alerts:", 
+                                  style={'fontSize': '11px', 'color': '#9ca3af', 'marginBottom': '5px'}))
         for alert in alerts:
             timestamp = dt.fromtimestamp(alert['timestamp'] / 1000).strftime('%H:%M:%S')
             direction_color = '#16a34a' if alert['direction'] == 'long' else '#ef4444'
             
             alerts_html.append(html.Div([
                 html.Span(f"[{timestamp}] ", style={'color': '#9ca3af', 'fontSize': '10px'}),
-                html.Span(f"🚨 {alert['direction'].upper()}", 
-                         style={'color': direction_color, 'fontWeight': 'bold', 'fontSize': '12px'}),
-                html.Span(f" @ ${alert['wall_price']:,.2f}", style={'color': '#e5e7eb', 'fontSize': '11px'}),
-                html.Span(f" ({alert['confidence']:.0%})", 
-                         style={'color': '#f59e0b', 'fontSize': '10px'})
-            ], style={'marginBottom': '3px', 'padding': '5px', 'background': '#1f2937', 'borderRadius': '3px'}))
-        
-        alerts_display = html.Div(alerts_html)
-    else:
-        alerts_display = html.P("✅ No alerts yet", style={'color': '#9ca3af'})
+                html.Span(f"{alert['direction'].upper()}", 
+                         style={'color': direction_color, 'fontWeight': 'bold', 'fontSize': '11px'}),
+                html.Span(f" @ ${alert['wall_price']:,.2f}", style={'color': '#e5e7eb', 'fontSize': '10px'})
+            ], style={'marginBottom': '2px', 'padding': '3px'}))
+    
+    alerts_display = html.Div(alerts_html)
     
     # Status text
     status = f"💰 ${snapshot['mid_price']:,.2f} | 🔄 Auto-refresh: 5s | 📊 {len(recent_trades) if recent_trades else 0} trades"

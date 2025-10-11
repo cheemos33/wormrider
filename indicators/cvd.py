@@ -1,8 +1,12 @@
 """CVD (Cumulative Volume Delta) calculation and analysis."""
 
 import numpy as np
+import warnings
 from typing import List, Dict, Any, Tuple
 from datetime import datetime, timedelta
+
+# Suppress numpy warnings for polyfit
+warnings.filterwarnings('ignore')
 
 
 def calculate_cvd(trades: List[Dict[str, Any]], window_minutes: int = 60) -> Dict[str, Any]:
@@ -118,6 +122,134 @@ def calculate_cvd_slope(cvd_series: List[Dict[str, Any]], lookback_periods: int 
             
     except (ValueError, np.linalg.LinAlgError):
         return 'neutral'
+
+
+def detect_cvd_trend_segments(cvd_series: List[Dict[str, Any]], 
+                              min_segment_size: int = 10,
+                              slope_threshold: float = 0.1) -> List[Dict[str, Any]]:
+    """
+    Detect CVD trend segments using piecewise linear regression.
+    Breaks CVD into segments with distinct trendlines.
+    
+    Args:
+        cvd_series: List of CVD data points
+        min_segment_size: Minimum number of points per segment
+        slope_threshold: Threshold for detecting slope change
+    
+    Returns:
+        List of segments with start, end, slope, direction
+    """
+    if len(cvd_series) < min_segment_size * 2:
+        return []
+    
+    segments = []
+    
+    # Convert to numpy arrays
+    timestamps = np.array([point['timestamp'] for point in cvd_series])
+    cvd_values = np.array([point['cvd'] for point in cvd_series])
+    
+    # Normalize time (seconds from start)
+    relative_times = (timestamps - timestamps[0]) / 1000.0
+    
+    # Simple segmentation: sliding window with slope change detection
+    i = 0
+    while i < len(cvd_values) - min_segment_size:
+        # Start new segment
+        segment_start = i
+        
+        # Calculate initial slope
+        window_times = relative_times[i:i+min_segment_size]
+        window_cvd = cvd_values[i:i+min_segment_size]
+        
+        try:
+            current_slope, _ = np.polyfit(window_times, window_cvd, 1)
+        except (ValueError, np.linalg.LinAlgError):
+            i += min_segment_size
+            continue
+        
+        # Extend segment while slope is consistent
+        j = i + min_segment_size
+        while j < len(cvd_values):
+            # Check if adding next point changes slope significantly
+            window_times = relative_times[i:j+1]
+            window_cvd = cvd_values[i:j+1]
+            
+            try:
+                new_slope, _ = np.polyfit(window_times, window_cvd, 1)
+                
+                # If slope changed significantly, end segment
+                if abs(new_slope - current_slope) > slope_threshold:
+                    break
+                
+                current_slope = new_slope
+                j += 1
+            except (ValueError, np.linalg.LinAlgError):
+                break
+        
+        # Finalize segment
+        segment_end = j
+        
+        # Calculate final slope for this segment
+        segment_times = relative_times[segment_start:segment_end]
+        segment_cvd = cvd_values[segment_start:segment_end]
+        
+        if len(segment_times) >= min_segment_size:
+            try:
+                final_slope, intercept = np.polyfit(segment_times, segment_cvd, 1)
+                
+                # Determine direction
+                if final_slope > slope_threshold:
+                    direction = 'upward'
+                elif final_slope < -slope_threshold:
+                    direction = 'downward'
+                else:
+                    direction = 'sideways'
+                
+                segments.append({
+                    'start_idx': segment_start,
+                    'end_idx': segment_end,
+                    'start_time': timestamps[segment_start],
+                    'end_time': timestamps[segment_end - 1],
+                    'slope': final_slope,
+                    'direction': direction,
+                    'intercept': intercept,
+                    'start_cvd': cvd_values[segment_start],
+                    'end_cvd': cvd_values[segment_end - 1]
+                })
+            except (ValueError, np.linalg.LinAlgError):
+                pass
+        
+        i = segment_end
+    
+    return segments
+
+
+def detect_momentum_change(segments: List[Dict[str, Any]]) -> str:
+    """
+    Detect momentum changes from CVD trend segments.
+    
+    Returns:
+        'upward_momentum', 'downward_momentum', 'sideways', or 'no_change'
+    """
+    if len(segments) < 2:
+        return 'no_change'
+    
+    # Get last two segments
+    prev_segment = segments[-2]
+    current_segment = segments[-1]
+    
+    prev_dir = prev_segment['direction']
+    curr_dir = current_segment['direction']
+    
+    # Detect transitions
+    if prev_dir != 'upward' and curr_dir == 'upward':
+        return 'upward_momentum'
+    elif prev_dir != 'downward' and curr_dir == 'downward':
+        return 'downward_momentum'
+    elif curr_dir == 'sideways':
+        return 'sideways'
+    else:
+        return 'no_change'
 
 
 def detect_slope_change(current_slope: str, previous_slope: str) -> str:
