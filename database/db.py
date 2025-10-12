@@ -9,9 +9,10 @@ from database.models import SCHEMA
 
 
 def get_connection() -> sqlite3.Connection:
-    """Get database connection."""
-    conn = sqlite3.Connection(config.DB_PATH)
+    """Get database connection with WAL mode for better concurrency."""
+    conn = sqlite3.connect(config.DB_PATH, timeout=30.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
 

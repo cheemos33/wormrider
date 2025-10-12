@@ -12,6 +12,7 @@ from collectors import binance
 from collectors import binance_trades
 from indicators import liquidity_walls
 from indicators import cvd
+from indicators import orderbook_imbalance
 from strategy import wall_trap
 from alerts import manager
 
@@ -76,7 +77,7 @@ app.layout = html.Div([
     # Row 2: Info Panels
     html.Div([
         html.Div([
-            html.H3("Liquidity Walls", style={'color': '#e5e7eb', 'fontSize': '14px'}),
+            html.H3("Order Book Imbalance", style={'color': '#e5e7eb', 'fontSize': '14px'}),
             html.Div(id='walls-info', style={'color': '#9ca3af', 'fontSize': '12px'})
         ], style={'background': '#0f172a', 'padding': '12px', 'borderRadius': '8px', 'flex': '1', 'marginRight': '5px'}),
         
@@ -189,38 +190,80 @@ def update_dashboard(n_intervals):
             annotation_font_size=10
         )
     
-    # Walls info panel - Detailed list
+    # Orderbook Imbalance Table (percentage-based)
+    imbalance_results, confluence, conf_strength = orderbook_imbalance.calculate_imbalance_at_distances(
+        bids=snapshot['bids'],
+        asks=snapshot['asks'],
+        mid_price=snapshot['mid_price']
+    )
+    
     walls_html = []
-    walls_html.append(html.P(f"📊 Total Walls: {walls_data['total_walls']}", 
-                            style={'fontWeight': 'bold', 'marginBottom': '10px'}))
+    walls_html.append(html.P("📊 Bid-Ask Imbalance (Depth Analysis)", 
+                            style={'fontWeight': 'bold', 'marginBottom': '10px', 'fontSize': '14px'}))
     
-    # BID Walls (sorted by size)
-    if walls_data['bid_walls']:
-        walls_html.append(html.P("🟢 BID WALLS:", 
-                                style={'color': '#16a34a', 'fontWeight': 'bold', 'fontSize': '12px', 'marginTop': '5px'}))
-        for i, wall in enumerate(walls_data['bid_walls'][:10]):  # Top 10
-            distance_pct = ((snapshot['mid_price'] - wall['price']) / snapshot['mid_price']) * 100
-            walls_html.append(html.Div([
-                html.Span(f"#{i+1} ", style={'color': '#9ca3af', 'fontSize': '10px'}),
-                html.Span(f"${wall['price']:,.2f}", style={'color': '#e5e7eb', 'fontWeight': 'bold', 'fontSize': '11px'}),
-                html.Span(f" | {wall['size']:.2f} BTC", style={'color': '#16a34a', 'fontSize': '10px'}),
-                html.Span(f" | {wall['asymmetry_ratio']:.1f}x", style={'color': '#f59e0b', 'fontSize': '10px'}),
-                html.Span(f" | -{distance_pct:.2f}%", style={'color': '#9ca3af', 'fontSize': '9px'})
-            ], style={'marginBottom': '3px', 'fontSize': '11px'}))
+    # Imbalance table
+    for result in imbalance_results:
+        distance_pct = result['distance_pct']
+        distance_usd = result['distance_usd']
+        bid_vol = result['bid_volume']
+        ask_vol = result['ask_volume']
+        bid_pct = result['bid_pct']
+        ask_pct = result['ask_pct']
+        imbalance = result['imbalance']
+        
+        # Visual bar (10 segments)
+        bar_segments = 10
+        bid_segments = int((bid_pct / 100) * bar_segments)
+        ask_segments = bar_segments - bid_segments
+        
+        # Create visual bar
+        bar = "█" * bid_segments + "░" * ask_segments
+        
+        # Color based on imbalance
+        if imbalance == 'BID':
+            bar_color = '#16a34a'  # Green
+            indicator = '🟢'
+        elif imbalance == 'ASK':
+            bar_color = '#ef4444'  # Red
+            indicator = '🔴'
+        else:
+            bar_color = '#9ca3af'  # Gray
+            indicator = '⚪'
+        
+        walls_html.append(html.Div([
+            html.Div([
+                html.Span(f"±{distance_pct:.2f}%", style={'color': '#e5e7eb', 'fontSize': '11px', 'width': '65px', 'display': 'inline-block'}),
+                html.Span(f"(${distance_usd:.0f})", style={'color': '#6b7280', 'fontSize': '9px', 'width': '70px', 'display': 'inline-block'}),
+                html.Span(f"{bar}", style={'color': bar_color, 'fontSize': '12px', 'letterSpacing': '-1px', 'marginLeft': '5px'}),
+                html.Span(f" {indicator}", style={'color': bar_color, 'fontSize': '10px', 'marginLeft': '5px'}),
+            ], style={'marginBottom': '3px'}),
+            html.Div([
+                html.Span(f"Bid: {bid_vol:.1f} BTC", style={'color': '#16a34a', 'fontSize': '9px', 'marginLeft': '140px'}),
+                html.Span(f" | Ask: {ask_vol:.1f} BTC", style={'color': '#ef4444', 'fontSize': '9px'}),
+                html.Span(f" | {bid_pct:.0f}%/{ask_pct:.0f}%", style={'color': '#9ca3af', 'fontSize': '9px'})
+            ], style={'marginBottom': '8px'})
+        ]))
     
-    # ASK Walls (sorted by size)
-    if walls_data['ask_walls']:
-        walls_html.append(html.P("🔴 ASK WALLS:", 
-                                style={'color': '#ef4444', 'fontWeight': 'bold', 'fontSize': '12px', 'marginTop': '10px'}))
-        for i, wall in enumerate(walls_data['ask_walls'][:10]):  # Top 10
-            distance_pct = ((wall['price'] - snapshot['mid_price']) / snapshot['mid_price']) * 100
-            walls_html.append(html.Div([
-                html.Span(f"#{i+1} ", style={'color': '#9ca3af', 'fontSize': '10px'}),
-                html.Span(f"${wall['price']:,.2f}", style={'color': '#e5e7eb', 'fontWeight': 'bold', 'fontSize': '11px'}),
-                html.Span(f" | {wall['size']:.2f} BTC", style={'color': '#ef4444', 'fontSize': '10px'}),
-                html.Span(f" | {wall['asymmetry_ratio']:.1f}x", style={'color': '#f59e0b', 'fontSize': '10px'}),
-                html.Span(f" | +{distance_pct:.2f}%", style={'color': '#9ca3af', 'fontSize': '9px'})
-            ], style={'marginBottom': '3px', 'fontSize': '11px'}))
+    # Confluence indicator
+    if confluence == 'ALL BID':
+        conf_color = '#16a34a'
+        conf_text = f'✅ CONFLUENCE: ALL BID ({conf_strength:.0%})'
+    elif confluence == 'ALL ASK':
+        conf_color = '#ef4444'
+        conf_text = f'✅ CONFLUENCE: ALL ASK ({conf_strength:.0%})'
+    elif confluence == 'MOSTLY BID':
+        conf_color = '#16a34a'
+        conf_text = f'⚠️ CONFLUENCE: MOSTLY BID ({conf_strength:.0%})'
+    elif confluence == 'MOSTLY ASK':
+        conf_color = '#ef4444'
+        conf_text = f'⚠️ CONFLUENCE: MOSTLY ASK ({conf_strength:.0%})'
+    else:
+        conf_color = '#9ca3af'
+        conf_text = f'❌ CONFLUENCE: MIXED ({conf_strength:.0%})'
+    
+    walls_html.append(html.Div([
+        html.P(conf_text, style={'color': conf_color, 'fontWeight': 'bold', 'fontSize': '12px', 'marginTop': '10px', 'padding': '8px', 'background': '#1f2937', 'borderRadius': '5px'})
+    ]))
     
     # 3. CVD Chart - Last 1 hour
     one_hour_ago = current_time - (60 * 60 * 1000)
@@ -347,5 +390,5 @@ def update_dashboard(n_intervals):
 
 
 if __name__ == '__main__':
-    print("Starting Wormrider on http://127.0.0.1:8050")
-    app.run(host='127.0.0.1', port=8050, debug=True)
+    print("Starting Wormrider on http://127.0.0.1:8060")
+    app.run(host='127.0.0.1', port=8060, debug=True)

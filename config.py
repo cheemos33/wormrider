@@ -5,7 +5,7 @@ BINANCE_REST_URL = "https://fapi.binance.com"
 
 # Data collection
 SAMPLE_INTERVAL_SECONDS = 5  # Sample every 5s (avoid Binance rate limit)
-ORDERBOOK_DEPTH_LIMIT = 1000  # Top 1000 levels
+ORDERBOOK_DEPTH_LIMIT = 1000  # Top 1000 levels (Binance API max)
 
 # Storage
 DB_PATH = "wormrider.db"
