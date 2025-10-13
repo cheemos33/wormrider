@@ -57,7 +57,7 @@ app.title = "Wormrider - Scalping"
 # Layout - Minimal UI
 app.layout = html.Div([
     html.Div([
-        html.H1("wormrider - BTCUSDT Scalping (Order Book Only)", style={'margin': '10px', 'color': '#e5e7eb', 'flex': '1'}),
+        html.H1("wormrider - BTCUSDT 2-Bin Scalping", style={'margin': '10px', 'color': '#e5e7eb', 'flex': '1'}),
         html.Div(id='status-text', children='Loading...', 
                 style={'margin': '10px', 'color': '#9ca3af', 'fontSize': '12px'}),
     ], style={'background': '#1f2937', 'padding': '10px', 'borderRadius': '8px', 'marginBottom': '10px', 'display': 'flex', 'alignItems': 'center'}),
@@ -142,7 +142,7 @@ def update_dashboard(n_intervals):
             agg_bids = agg_snapshot['bids']
             agg_asks = agg_snapshot['asks']
             
-            # 2. Calculate imbalance (with 59% threshold for signals)
+            # 2. Calculate imbalance - 2 BINS (with 60% threshold for signals)
             imbalance_data = orderbook_scalping.calculate_imbalance(
                 agg_bids=agg_bids,
                 agg_asks=agg_asks,
@@ -160,26 +160,29 @@ def update_dashboard(n_intervals):
                     'direction': imbalance_data['direction'],
                     'entry_price': current_price,
                     'tp_price': current_price + 50.0 if imbalance_data['direction'] == 'long' else current_price - 50.0,
-                    'sl_price': current_price - 60.0 if imbalance_data['direction'] == 'long' else current_price + 60.0,
+                    'sl_price': current_price - 40.0 if imbalance_data['direction'] == 'long' else current_price + 40.0,
                     'bid_volume': imbalance_data['bid_volume'],
                     'ask_volume': imbalance_data['ask_volume'],
                     'imbalance_ratio': imbalance_data['imbalance_ratio'],
                     'cvd_slope': 'N/A',  # No CVD check
                     'strength': imbalance_data['imbalance_ratio'],
                     'status': 'pending',
-                    'timestamp': current_time_ms
+                    'timestamp': current_time_ms,
+                    'initial_bid_liquidity': imbalance_data['bid_volume'],
+                    'initial_ask_liquidity': imbalance_data['ask_volume']
                 }
                 
                 # Store signal in database
                 db.insert_signal(signal)
                 
                 print(f"\n{'='*60}")
-                print(f"🎯 NEW SIGNAL GENERATED (ORDER BOOK ONLY - 59% threshold)")
+                print(f"🎯 NEW SIGNAL GENERATED (2 BINS - 60% threshold)")
                 print(f"   Direction: {signal['direction'].upper()}")
                 print(f"   Entry: ${signal['entry_price']:,.2f}")
                 print(f"   TP: ${signal['tp_price']:,.2f} (+$50)")
-                print(f"   SL: ${signal['sl_price']:,.2f} (-$60)")
+                print(f"   SL: ${signal['sl_price']:,.2f} (-$40)")
                 print(f"   Imbalance: {signal['imbalance_ratio']*100:.1f}%")
+                print(f"   2-Bin Range: Bid={signal['initial_bid_liquidity']:.2f} Ask={signal['initial_ask_liquidity']:.2f}")
                 print(f"{'='*60}\n")
     
     # ========== END SIGNAL GENERATION ==========
@@ -197,12 +200,12 @@ def update_dashboard(n_intervals):
         agg_bids = agg_snapshot['bids']
         agg_asks = agg_snapshot['asks']
         
-        # Calculate imbalance for display (no threshold)
+        # Calculate imbalance for display - 2 BINS (no threshold)
         imbalance_data_display = orderbook_scalping.calculate_imbalance_display(
             agg_bids=agg_bids,
             agg_asks=agg_asks,
             current_price=current_price,
-            num_bins=2
+            num_bins=2  # 2 bins = $200 range
         )
         
         if imbalance_data_display:
@@ -211,9 +214,9 @@ def update_dashboard(n_intervals):
                 html.P(f"{direction_emoji} Imbalance: {imbalance_data_display['direction'].upper()} ({imbalance_data_display['imbalance_ratio']*100:.1f}%)"),
                 html.P(f"📊 Bid Vol: {imbalance_data_display['bid_volume']:,.2f}"),
                 html.P(f"📊 Ask Vol: {imbalance_data_display['ask_volume']:,.2f}"),
-                html.P(f"🎯 Signal Threshold: 59%", style={'fontSize': '11px', 'color': '#6b7280'}),
-                html.P(f"{'✅ Would generate signal!' if imbalance_data_display['imbalance_ratio'] >= 0.59 else '❌ Below threshold'}", 
-                       style={'fontSize': '11px', 'color': '#10b981' if imbalance_data_display['imbalance_ratio'] >= 0.59 else '#ef4444'})
+                html.P(f"🎯 Signal Threshold: 60% (2 Bins = $200)", style={'fontSize': '11px', 'color': '#6b7280'}),
+                html.P(f"{'✅ Would generate signal!' if imbalance_data_display['imbalance_ratio'] >= 0.60 else '❌ Below threshold'}", 
+                       style={'fontSize': '11px', 'color': '#10b981' if imbalance_data_display['imbalance_ratio'] >= 0.60 else '#ef4444'})
             ])
             market_state = html.Div([market_state, imbalance_display])
         else:
@@ -224,9 +227,9 @@ def update_dashboard(n_intervals):
     if active_signal:
         direction_emoji = "📈" if active_signal['direction'] == 'long' else "📉"
         entry_price = active_signal['entry_price']
-        position_size = 500.0
+        position_size = 5000.0  # Updated to $5000
         
-        # Calculate current unrealized PnL (based on $500 position)
+        # Calculate current unrealized PnL (based on $5000 position)
         if active_signal['direction'] == 'long':
             price_diff = current_price - entry_price
         else:
@@ -235,17 +238,14 @@ def update_dashboard(n_intervals):
         current_pnl = (price_diff / entry_price) * position_size
         
         # Calculate expected PnL for TP/SL
-        tp_price_diff = 50.0 if active_signal['direction'] == 'long' else -50.0
-        sl_price_diff = -60.0 if active_signal['direction'] == 'long' else 60.0
-        
         expected_tp_pnl = (50.0 / entry_price) * position_size
-        expected_sl_pnl = (60.0 / entry_price) * position_size
+        expected_sl_pnl = (40.0 / entry_price) * position_size  # Updated to $40 SL
         
         active_signal_display = html.Div([
             html.P(f"{direction_emoji} {active_signal['direction'].upper()}"),
             html.P(f"💰 Entry: ${entry_price:,.2f}"),
             html.P(f"🎯 TP: ${active_signal['tp_price']:,.2f} (+$50 = ${expected_tp_pnl:.2f} profit)"),
-            html.P(f"🛑 SL: ${active_signal['sl_price']:,.2f} (-$60 = ${expected_sl_pnl:.2f} loss)"),
+            html.P(f"🛑 SL: ${active_signal['sl_price']:,.2f} (-$40 = ${expected_sl_pnl:.2f} loss)"),
             html.P(f"📊 Strength: {active_signal['strength']*100:.1f}%"),
             html.P(f"💵 Current PnL: ${current_pnl:.2f} (${price_diff:.2f} price move)", 
                    style={'color': '#10b981' if current_pnl > 0 else '#ef4444' if current_pnl < 0 else '#9ca3af'})
@@ -259,22 +259,35 @@ def update_dashboard(n_intervals):
                 html.P(f"{direction_emoji} {pending_signal['direction'].upper()}"),
                 html.P(f"💰 Entry: ${pending_signal['entry_price']:,.2f}"),
                 html.P(f"🎯 TP: ${pending_signal['tp_price']:,.2f} (+$50)"),
-                html.P(f"🛑 SL: ${pending_signal['sl_price']:,.2f} (-$60)")
+                html.P(f"🛑 SL: ${pending_signal['sl_price']:,.2f} (-$40)")
             ])
         else:
             active_signal_display = html.P("⏳ No active signal")
     
-    # 3. Recent Signals
-    recent_signals = db.get_recent_signals(limit=3)
+    # 3. Recent Signals (show ALL, not just last 3)
+    recent_signals = db.get_recent_signals(limit=20)  # Show last 20 signals
     if recent_signals:
         signals_list = []
         for signal in recent_signals:
             direction_emoji = "📈" if signal['direction'] == 'long' else "📉"
             status_emoji = "✅" if signal['pnl'] and signal['pnl'] > 0 else "❌" if signal['pnl'] and signal['pnl'] <= 0 else "⏳"
+            
+            # Format timestamp
+            time_str = dt.fromtimestamp(signal['timestamp'] / 1000).strftime('%H:%M:%S')
+            
+            # Get exit reason if available
+            exit_reason = signal.get('exit_reason', 'Unknown')
+            if not exit_reason:
+                exit_reason = 'Manual close' if signal['status'] not in ['tp_hit', 'sl_hit'] else signal['status'].replace('_', ' ').upper()
+            
             signals_list.append(
-                html.P(f"{status_emoji} {direction_emoji} {signal['direction'].upper()} - {signal['status']} | PnL: ${signal['pnl'] if signal['pnl'] is not None else 0:.2f}")
+                html.P(
+                    f"{status_emoji} {direction_emoji} {signal['direction'].upper()} @ {time_str} | " +
+                    f"PnL: ${signal['pnl'] if signal['pnl'] is not None else 0:.2f} | {exit_reason}",
+                    style={'fontSize': '12px', 'marginBottom': '5px'}
+                )
             )
-        recent_signals_display = html.Div(signals_list)
+        recent_signals_display = html.Div(signals_list, style={'maxHeight': '300px', 'overflowY': 'auto'})
     else:
         recent_signals_display = html.P("📝 No signals generated yet")
     
@@ -293,15 +306,19 @@ def update_dashboard(n_intervals):
     else:
         session_stats_display = html.P("📊 No completed trades yet")
     
-    # 5. Status
-    status = f"Live: ${current_price:,.2f} | Threshold: 59% | TP: +$50 | SL: -$60 | Auto-refresh: 5s"
+    # 5. Status with parameters
+    status = f"Live: ${current_price:,.2f} | 📊 Threshold: 60% (2 Bins) | 💰 Position: $5000 (5x) | 🎯 TP: +$50 | 🛑 SL: -$40 | ⏱️ Refresh: 5s"
     
     return market_state, active_signal_display, recent_signals_display, session_stats_display, status
 
 
 if __name__ == '__main__':
     print("Starting Wormrider on http://127.0.0.1:8060")
-    print("Strategy: Order Book Imbalance Only (NO CVD)")
-    print("Signal Threshold: 59%")
-    print("TP: +$50 | SL: -$60")
+    print("="*60)
+    print("Strategy: Order Book Imbalance - 2 BINS ($200)")
+    print("Signal Threshold: 60%")
+    print("Position Size: $5000 (5x leverage)")
+    print("TP: +$50 price movement")
+    print("SL: -$40 price movement")
+    print("="*60)
     app.run(host='127.0.0.1', port=8060, debug=True)

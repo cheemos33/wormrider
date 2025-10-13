@@ -49,6 +49,9 @@ CREATE TABLE IF NOT EXISTS signals (
     exit_time INTEGER,
     exit_price REAL,
     pnl REAL,
+    exit_reason TEXT,
+    initial_bid_liquidity REAL,
+    initial_ask_liquidity REAL,
     UNIQUE(timestamp)
 );
 

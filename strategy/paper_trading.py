@@ -105,19 +105,19 @@ class PaperTradingMonitor:
                 hit_sl = True
         
         if hit_tp:
-            self._close_position(signal, current, 'tp_hit')
+            self._close_position(signal, current, 'tp_hit', 'Price reached TP (+$50)')
         elif hit_sl:
-            self._close_position(signal, current, 'sl_hit')
+            self._close_position(signal, current, 'sl_hit', 'Price reached SL (-$40)')
     
-    def _close_position(self, signal: Dict[str, Any], exit_price: float, status: str):
+    def _close_position(self, signal: Dict[str, Any], exit_price: float, status: str, exit_reason: str):
         """Close position and log result."""
         signal_id = signal['id']
         direction = signal['direction']
         entry_price = signal['entry_price']
         exit_time = int(time.time() * 1000)
         
-        # Position size: $100 with 5x leverage = $500 position
-        position_size_usd = 500.0
+        # Position size: $1000 with 5x leverage = $5000 position
+        position_size_usd = 5000.0
         
         # Calculate price difference
         if direction == 'long':
@@ -133,8 +133,8 @@ class PaperTradingMonitor:
         entry_time = signal['entry_time']
         duration_seconds = (exit_time - entry_time) / 1000
         
-        # Update database
-        db.update_signal_exit(signal_id, exit_time, exit_price, pnl, status)
+        # Update database with exit_reason
+        db.update_signal_exit(signal_id, exit_price, exit_time, pnl, status, exit_reason)
         
         # Log exit
         emoji = '✅' if status == 'tp_hit' else '❌'
@@ -146,9 +146,10 @@ class PaperTradingMonitor:
         print(f"{emoji} {status_text} @ ${exit_price:,.2f}")
         print(f"   Entry: ${entry_price:,.2f} → Exit: ${exit_price:,.2f}")
         print(f"   Price Diff: {pnl_color}${price_diff:.2f}")
-        print(f"   Position: $500 (5x leverage)")
+        print(f"   Position: $5000 (5x leverage)")
         print(f"   PnL: {pnl_color}${pnl:.2f} ({pnl_color}{pnl_pct:.2f}%)")
         print(f"   Duration: {duration_seconds:.0f}s")
+        print(f"   Reason: {exit_reason}")
         print(f"{'='*60}\n")
 
 

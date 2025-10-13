@@ -401,15 +401,17 @@ def insert_signal(signal_data: Dict[str, Any]) -> None:
             """
             INSERT INTO signals (
                 timestamp, signal_type, direction, entry_price, tp_price, sl_price,
-                bid_volume, ask_volume, imbalance_ratio, cvd_slope, strength, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                bid_volume, ask_volume, imbalance_ratio, cvd_slope, strength, status,
+                initial_bid_liquidity, initial_ask_liquidity
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 signal_data['timestamp'], signal_data['signal_type'], signal_data['direction'],
                 signal_data['entry_price'], signal_data['tp_price'], signal_data['sl_price'],
                 signal_data.get('bid_volume'), signal_data.get('ask_volume'),
                 signal_data.get('imbalance_ratio'), signal_data.get('cvd_slope'),
-                signal_data.get('strength'), signal_data.get('status', 'pending')
+                signal_data.get('strength'), signal_data.get('status', 'pending'),
+                signal_data.get('initial_bid_liquidity'), signal_data.get('initial_ask_liquidity')
             )
         )
         conn.commit()
@@ -472,17 +474,17 @@ def update_signal_entry(signal_id: int, entry_price: float, entry_time: int) -> 
     finally:
         conn.close()
 
-def update_signal_exit(signal_id: int, exit_price: float, exit_time: int, pnl: float, status: str) -> None:
+def update_signal_exit(signal_id: int, exit_price: float, exit_time: int, pnl: float, status: str, exit_reason: str = None) -> None:
     """Update a signal's status to 'closed' with exit details."""
     conn = get_connection()
     try:
         conn.execute(
             """
             UPDATE signals
-            SET status = ?, exit_price = ?, exit_time = ?, pnl = ?
+            SET status = ?, exit_price = ?, exit_time = ?, pnl = ?, exit_reason = ?
             WHERE id = ?
             """,
-            (status, exit_price, exit_time, pnl, signal_id)
+            (status, exit_price, exit_time, pnl, exit_reason, signal_id)
         )
         conn.commit()
     except Exception as e:
@@ -636,24 +638,6 @@ def update_signal_entry(signal_id: int, entry_price: float, entry_time: int) -> 
     finally:
         conn.close()
 
-def update_signal_exit(signal_id: int, exit_price: float, exit_time: int, pnl: float, status: str) -> None:
-    """Update a signal's status to 'closed' with exit details."""
-    conn = get_connection()
-    try:
-        conn.execute(
-            """
-            UPDATE signals
-            SET status = ?, exit_price = ?, exit_time = ?, pnl = ?
-            WHERE id = ?
-            """,
-            (status, exit_price, exit_time, pnl, signal_id)
-        )
-        conn.commit()
-    except Exception as e:
-        print(f"Error updating signal exit: {e}")
-        conn.rollback()
-    finally:
-        conn.close()
 
 def get_recent_signals(limit: int = 5) -> List[Dict[str, Any]]:
     """Get a list of recent signals, excluding 'pending' and 'active'."""

@@ -3,6 +3,81 @@
 from typing import List, Tuple, Dict, Any, Optional
 
 
+def calculate_imbalance_first_bin_only(
+    agg_bids: List[Tuple[float, float]],
+    agg_asks: List[Tuple[float, float]],
+    current_price: float,
+    bin_size: int = 100
+) -> Optional[Dict[str, Any]]:
+    """
+    Calculate imbalance using ONLY the first bin ($100) on each side.
+    This is more sensitive to immediate order book pressure.
+    
+    Args:
+        agg_bids: List of (price_bin_midpoint, quantity) for aggregated bids.
+        agg_asks: List of (price_bin_midpoint, quantity) for aggregated asks.
+        current_price: Current mid-price.
+        bin_size: The size of each bin (default 100 for $100 bins).
+        
+    Returns:
+        A dictionary with 'direction', 'bid_volume', 'ask_volume', 'imbalance_ratio',
+        'first_bin_bid_volume', 'first_bin_ask_volume', 'first_bin_confirmed' if conditions met, else None.
+    """
+    if not agg_bids or not agg_asks:
+        return None
+
+    # Get ONLY the first bin on each side (closest to current price)
+    first_bid_volume = 0.0
+    for price, quantity in agg_bids:
+        if price >= current_price - bin_size and price < current_price:
+            first_bid_volume += quantity
+    
+    first_ask_volume = 0.0
+    for price, quantity in agg_asks:
+        if price > current_price and price <= current_price + bin_size:
+            first_ask_volume += quantity
+    
+    # Require minimum volume
+    total_volume = first_bid_volume + first_ask_volume
+    if total_volume < 5.0:  # Minimum 5 BTC in first bins
+        return None
+    
+    # Calculate imbalance ratio
+    direction = None
+    imbalance_ratio = 0.5
+    
+    if first_bid_volume > first_ask_volume:
+        imbalance_ratio = first_bid_volume / (first_bid_volume + first_ask_volume)
+        # CONTRARIAN: More bids → SHORT bias
+        direction = 'short'
+    elif first_ask_volume > first_bid_volume:
+        imbalance_ratio = first_ask_volume / (first_bid_volume + first_ask_volume)
+        # CONTRARIAN: More asks → LONG bias
+        direction = 'long'
+    else:
+        imbalance_ratio = 0.5
+        direction = None
+    
+    # Require minimum imbalance strength for signal generation (60% = strong signal threshold)
+    # Note: This function is used for signal generation only
+    # For display purposes, we'll check threshold in the calling code
+    if direction and imbalance_ratio < 0.60:
+        return None
+    
+    # First bin confirmation (always true since we only use first bins)
+    first_bin_confirmed = True
+    
+    return {
+        'direction': direction,
+        'bid_volume': first_bid_volume,
+        'ask_volume': first_ask_volume,
+        'imbalance_ratio': imbalance_ratio,
+        'first_bid_volume': first_bid_volume,
+        'first_ask_volume': first_ask_volume,
+        'first_bin_confirmed': first_bin_confirmed
+    }
+
+
 def calculate_imbalance(
     agg_bids: List[Tuple[float, float]], 
     agg_asks: List[Tuple[float, float]], 
@@ -75,10 +150,10 @@ def calculate_imbalance(
         imbalance_ratio = 0.5
         direction = None
     
-    # Require minimum imbalance strength for signal generation (59% = moderate signal threshold)
+    # Require minimum imbalance strength for signal generation (60% = strong signal threshold)
     # Note: This function is used for signal generation only
     # For display purposes, we'll check threshold in the calling code
-    if direction and imbalance_ratio < 0.59:
+    if direction and imbalance_ratio < 0.60:
         return None
     
     # First bin confirmation
@@ -97,6 +172,53 @@ def calculate_imbalance(
         'first_bid_volume': first_bid_volume,
         'first_ask_volume': first_ask_volume,
         'first_bin_confirmed': first_bin_confirmed
+    }
+
+
+def calculate_imbalance_display_first_bin(
+    agg_bids: List[Tuple[float, float]],
+    agg_asks: List[Tuple[float, float]],
+    current_price: float,
+    bin_size: int = 100
+) -> Optional[Dict[str, Any]]:
+    """
+    Calculate imbalance for display using ONLY first bin (no threshold filter).
+    """
+    if not agg_bids or not agg_asks:
+        return None
+
+    # Get ONLY the first bin on each side
+    first_bid_volume = 0.0
+    for price, quantity in agg_bids:
+        if price >= current_price - bin_size and price < current_price:
+            first_bid_volume += quantity
+    
+    first_ask_volume = 0.0
+    for price, quantity in agg_asks:
+        if price > current_price and price <= current_price + bin_size:
+            first_ask_volume += quantity
+    
+    total_volume = first_bid_volume + first_ask_volume
+    if total_volume < 5.0:
+        return None
+    
+    # Calculate imbalance ratio
+    if first_bid_volume > first_ask_volume:
+        imbalance_ratio = first_bid_volume / (first_bid_volume + first_ask_volume)
+        direction = 'short'
+    elif first_ask_volume > first_bid_volume:
+        imbalance_ratio = first_ask_volume / (first_bid_volume + first_ask_volume)
+        direction = 'long'
+    else:
+        imbalance_ratio = 0.5
+        direction = None
+    
+    # No threshold filter for display
+    return {
+        'direction': direction,
+        'bid_volume': first_bid_volume,
+        'ask_volume': first_ask_volume,
+        'imbalance_ratio': imbalance_ratio
     }
 
 
