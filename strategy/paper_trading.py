@@ -2,8 +2,8 @@
 
 import time
 import threading
-from typing import Optional, Dict, Any
-from database import db
+from typing import Optional, Dict, Any, List
+from database import db_signals
 
 
 class PaperTradingMonitor:
@@ -39,19 +39,37 @@ class PaperTradingMonitor:
             self.monitor_thread.join(timeout=2.0)
     
     def _monitor_loop(self):
-        """Main monitoring loop."""
+        """Main monitoring loop - monitors all 3 strategies."""
         while self.running:
             try:
-                # Get active signal
-                active_signal = db.get_active_signal()
+                # Get active signals for all 3 strategies
+                active_historical = db_signals.get_active_signal('HISTORICAL')
+                active_instant = db_signals.get_active_signal('INSTANT')
+                active_hybrid = db_signals.get_active_signal('HYBRID')
                 
-                if active_signal and self.current_price:
-                    self._check_exit_conditions(active_signal)
+                # Check exit conditions for each active signal
+                if active_historical and self.current_price:
+                    self._check_exit_conditions(active_historical)
                 
-                # Also check pending signals for immediate entry
-                pending_signal = db.get_pending_signal()
-                if pending_signal and self.current_price:
-                    self._activate_pending_signal(pending_signal)
+                if active_instant and self.current_price:
+                    self._check_exit_conditions(active_instant)
+                
+                if active_hybrid and self.current_price:
+                    self._check_exit_conditions(active_hybrid)
+                
+                # Also check pending signals for immediate entry (all 3 strategies)
+                pending_historical = db_signals.get_pending_signal('HISTORICAL')
+                pending_instant = db_signals.get_pending_signal('INSTANT')
+                pending_hybrid = db_signals.get_pending_signal('HYBRID')
+                
+                if pending_historical and self.current_price:
+                    self._activate_pending_signal(pending_historical)
+                
+                if pending_instant and self.current_price:
+                    self._activate_pending_signal(pending_instant)
+                
+                if pending_hybrid and self.current_price:
+                    self._activate_pending_signal(pending_hybrid)
                 
             except Exception as e:
                 print(f"Error in paper trading monitor: {e}")
@@ -68,7 +86,7 @@ class PaperTradingMonitor:
         entry_time = int(time.time() * 1000)
         
         # Update to active (correct parameter order: signal_id, entry_price, entry_time)
-        db.update_signal_entry(signal_id, entry_price, entry_time)
+        db_signals.update_signal_entry(signal_id, entry_price, entry_time)
         
         # Log entry
         direction = signal['direction']
@@ -134,7 +152,7 @@ class PaperTradingMonitor:
         duration_seconds = (exit_time - entry_time) / 1000
         
         # Update database with exit_reason
-        db.update_signal_exit(signal_id, exit_price, exit_time, pnl, status, exit_reason)
+        db_signals.update_signal_exit(signal_id, exit_price, exit_time, pnl, status, exit_reason)
         
         # Log exit
         emoji = '✅' if status == 'tp_hit' else '❌'
