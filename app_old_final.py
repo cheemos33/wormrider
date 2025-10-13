@@ -148,7 +148,7 @@ def update_dashboard(n_intervals):
             agg_bids = agg_snapshot['bids']
             agg_asks = agg_snapshot['asks']
             
-            # 2. Calculate imbalance (with 54% threshold for signals)
+            # 2. Calculate imbalance
             imbalance_data = orderbook_scalping.calculate_imbalance(
                 agg_bids=agg_bids,
                 agg_asks=agg_asks,
@@ -200,14 +200,14 @@ def update_dashboard(n_intervals):
     
     # ========== END SIGNAL GENERATION ==========
     
-    # 1. Market State (display any imbalance, no threshold)
+    # 1. Market State
     agg_snapshot = db.get_latest_aggregated_snapshot("BTCUSDT", 100)
     if agg_snapshot:
         agg_bids = agg_snapshot['bids']
         agg_asks = agg_snapshot['asks']
         
-        # Calculate 2-bin imbalance for display (no threshold)
-        imbalance_data = orderbook_scalping.calculate_imbalance_display(
+        # Calculate 2-bin imbalance for display
+        imbalance_data = orderbook_scalping.calculate_imbalance(
             agg_bids=agg_bids,
             agg_asks=agg_asks,
             current_price=current_price,

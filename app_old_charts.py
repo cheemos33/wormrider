@@ -156,7 +156,7 @@ def update_dashboard(n_intervals):
             agg_asks = agg_snapshot['asks']
             
             # 2. Calculate imbalance
-            imbalance_data = orderbook_scalping.calculate_imbalance(
+            imbalance_data = orderbook_scalping.calculate_imbalance_display(
                 agg_bids=agg_bids,
                 agg_asks=agg_asks,
                 current_price=current_price,

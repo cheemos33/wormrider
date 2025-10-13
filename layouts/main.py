@@ -61,11 +61,11 @@ def create_layout():
             ], style={'background': '#0f172a', 'padding': '12px', 'borderRadius': '8px', 'flex': '1'}),
         ], style={'display': 'flex', 'gap': '0px'}),
         
-        # Interval component for auto-refresh
-        dcc.Interval(
-            id='interval-component',
-            interval=config.AUTO_REFRESH_INTERVAL,  # 10 seconds
-            n_intervals=0
-        )
-    ], style={'padding': '20px', 'background': '#0b0f16', 'minHeight': '100vh'})
+            # Interval component for auto-refresh
+            dcc.Interval(
+                id='interval-component',
+                interval=config.AUTO_REFRESH_INTERVAL,  # 1 second
+                n_intervals=0
+            )
+        ], style={'padding': '20px', 'background': '#0b0f16', 'minHeight': '100vh'})
 
