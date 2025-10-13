@@ -75,10 +75,10 @@ def calculate_imbalance(
         imbalance_ratio = 0.5
         direction = None
     
-    # Require minimum imbalance strength for signal generation (54% = signal threshold)
+    # Require minimum imbalance strength for signal generation (59% = moderate signal threshold)
     # Note: This function is used for signal generation only
     # For display purposes, we'll check threshold in the calling code
-    if direction and imbalance_ratio < 0.54:
+    if direction and imbalance_ratio < 0.59:
         return None
     
     # First bin confirmation

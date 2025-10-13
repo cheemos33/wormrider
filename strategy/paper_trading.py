@@ -67,8 +67,8 @@ class PaperTradingMonitor:
         entry_price = signal['entry_price']
         entry_time = int(time.time() * 1000)
         
-        # Update to active
-        db.update_signal_entry(signal_id, entry_time, entry_price)
+        # Update to active (correct parameter order: signal_id, entry_price, entry_time)
+        db.update_signal_entry(signal_id, entry_price, entry_time)
         
         # Log entry
         direction = signal['direction']
@@ -116,11 +116,18 @@ class PaperTradingMonitor:
         entry_price = signal['entry_price']
         exit_time = int(time.time() * 1000)
         
-        # Calculate PnL
+        # Position size: $100 with 5x leverage = $500 position
+        position_size_usd = 500.0
+        
+        # Calculate price difference
         if direction == 'long':
-            pnl = exit_price - entry_price
+            price_diff = exit_price - entry_price
         else:  # short
-            pnl = entry_price - exit_price
+            price_diff = entry_price - exit_price
+        
+        # Calculate PnL based on position size
+        # PnL = (price_diff / entry_price) * position_size
+        pnl = (price_diff / entry_price) * position_size_usd
         
         # Calculate duration
         entry_time = signal['entry_time']
@@ -133,11 +140,13 @@ class PaperTradingMonitor:
         emoji = '✅' if status == 'tp_hit' else '❌'
         status_text = 'TP HIT' if status == 'tp_hit' else 'SL HIT'
         pnl_color = '+' if pnl > 0 else ''
-        pnl_pct = (pnl / entry_price) * 100
+        pnl_pct = (pnl / position_size_usd) * 100
         
         print(f"\n{'='*60}")
         print(f"{emoji} {status_text} @ ${exit_price:,.2f}")
         print(f"   Entry: ${entry_price:,.2f} → Exit: ${exit_price:,.2f}")
+        print(f"   Price Diff: {pnl_color}${price_diff:.2f}")
+        print(f"   Position: $500 (5x leverage)")
         print(f"   PnL: {pnl_color}${pnl:.2f} ({pnl_color}{pnl_pct:.2f}%)")
         print(f"   Duration: {duration_seconds:.0f}s")
         print(f"{'='*60}\n")
