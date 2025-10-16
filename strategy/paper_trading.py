@@ -43,13 +43,13 @@ class PaperTradingMonitor:
         while self.running:
             try:
                 # Get active signals for all 3 strategies
-                active_historical = db_signals.get_active_signal('HISTORICAL')
+                active_instant_xl = db_signals.get_active_signal('INSTANT_XL')
                 active_instant = db_signals.get_active_signal('INSTANT')
                 active_hybrid = db_signals.get_active_signal('HYBRID')
                 
                 # Check exit conditions for each active signal
-                if active_historical and self.current_price:
-                    self._check_exit_conditions(active_historical)
+                if active_instant_xl and self.current_price:
+                    self._check_exit_conditions(active_instant_xl)
                 
                 if active_instant and self.current_price:
                     self._check_exit_conditions(active_instant)
@@ -58,12 +58,12 @@ class PaperTradingMonitor:
                     self._check_exit_conditions(active_hybrid)
                 
                 # Also check pending signals for immediate entry (all 3 strategies)
-                pending_historical = db_signals.get_pending_signal('HISTORICAL')
+                pending_instant_xl = db_signals.get_pending_signal('INSTANT_XL')
                 pending_instant = db_signals.get_pending_signal('INSTANT')
                 pending_hybrid = db_signals.get_pending_signal('HYBRID')
                 
-                if pending_historical and self.current_price:
-                    self._activate_pending_signal(pending_historical)
+                if pending_instant_xl and self.current_price:
+                    self._activate_pending_signal(pending_instant_xl)
                 
                 if pending_instant and self.current_price:
                     self._activate_pending_signal(pending_instant)
