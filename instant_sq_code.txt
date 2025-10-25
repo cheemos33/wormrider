@@ -1,0 +1,71 @@
+
+            # === STRATEGY 4: INSTANT_SQ (Requires 2 consecutive INSTANT signals) ===
+            active_instant_sq = db_signals.get_active_signal("INSTANT_SQ")
+            pending_instant_sq = db_signals.get_pending_signal("INSTANT_SQ")
+            
+            if not active_instant_sq and not pending_instant_sq:
+                # Check for 2 consecutive INSTANT signals in same direction
+                recent_instant_signals = db_signals.get_recent_signals_by_type("INSTANT", limit=10)
+                current_time_ms = int(time.time() * 1000)
+                
+                consecutive_count = 0
+                last_direction = None
+                
+                # INSTANT_SQ DEBUG
+                if len(recent_instant_signals) >= 2:
+                    print(f"🔍 INSTANT_SQ DEBUG: {len(recent_instant_signals)} INSTANT signals found")
+                    for i, signal in enumerate(recent_instant_signals[:3]):
+                        print(f"   Signal {i+1}: {signal['direction']} - {signal.get('imbalance_ratio', 0)*100:.1f}%")
+                    print(f"   Consecutive count: {consecutive_count}, Last direction: {last_direction}")
+                    if instant_imbalance:
+                        print(f"   Current imbalance: {instant_imbalance['imbalance_ratio']*100:.1f}% ({instant_imbalance['direction']})")
+                        if 0.55 <= instant_imbalance["imbalance_ratio"] <= 0.66:
+                            print(f"   ✅ Threshold passed: {instant_imbalance['imbalance_ratio']*100:.1f}% (need 55-66%)")
+                        else:
+                            print(f"   ❌ Threshold failed: {instant_imbalance['imbalance_ratio']*100:.1f}% (need 55-66%)")
+                    else:
+                        print("   ❌ No instant_imbalance data")
+                else:
+                    print(f"🔍 INSTANT_SQ DEBUG: Only {len(recent_instant_signals)} INSTANT signals (need 2+)")
+                
+                for recent_signal in recent_instant_signals:
+                    try:
+                        recent_timestamp = int(recent_signal["timestamp"])
+                    except (ValueError, TypeError):
+                        continue
+                    
+                    if (current_time_ms - recent_timestamp) < 300000:  # 5 minutes
+                        if recent_signal["direction"] == last_direction:
+                            consecutive_count += 1
+                        else:
+                            consecutive_count = 1
+                            last_direction = recent_signal["direction"]
+                        
+                        if consecutive_count >= 2 and instant_imbalance:
+                            # Lower threshold for INSTANT_SQ: 55-66%
+                            if 0.55 <= instant_imbalance["imbalance_ratio"] <= 0.66:
+                                current_time_ms = int(time.time() * 1000)
+                                signal = {
+                                    "signal_type": "INSTANT_SQ",
+                                    "direction": instant_imbalance["direction"],
+                                    "entry_price": current_price,
+                                    "tp_price": current_price + 135.0 if instant_imbalance["direction"] == "long" else current_price - 135.0,
+                                    "sl_price": current_price - 75.0 if instant_imbalance["direction"] == "long" else current_price + 75.0,
+                                    "bid_volume": instant_imbalance["bid_volume"],
+                                    "ask_volume": instant_imbalance["ask_volume"],
+                                    "imbalance_ratio": instant_imbalance["imbalance_ratio"],
+                                    "timestamp": current_time_ms,
+                                    "entry_time": current_price,
+                                    "initial_bid_liquidity": instant_imbalance["bid_volume"],
+                                    "initial_ask_liquidity": instant_imbalance["ask_volume"]
+                                }
+                                db_signals.insert_signal(signal)
+                                print(f"\n{'='*60}")
+                                print(f"🔵 STRATEGY 4: INSTANT_SQ SIGNAL (DOUBLE INSTANT!)")
+                                direction = signal["direction"].upper()
+                                print(f"   Direction: {direction}")
+                                imbalance_pct = signal["imbalance_ratio"]*100
+                                print(f"   Imbalance: {imbalance_pct:.1f}%")
+                                print(f"   Consecutive INSTANT signals: {consecutive_count}")
+                                print(f"{'='*60}\n")
+                                break

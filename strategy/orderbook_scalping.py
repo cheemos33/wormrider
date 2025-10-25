@@ -58,10 +58,10 @@ def calculate_imbalance_first_bin_only(
         imbalance_ratio = 0.5
         direction = None
     
-    # Require minimum imbalance strength for signal generation (60% = strong signal threshold)
+    # Require minimum imbalance strength for signal generation (60-66% = strong signal threshold)
     # Note: This function is used for signal generation only
     # For display purposes, we'll check threshold in the calling code
-    if direction and imbalance_ratio < 0.60:
+    if direction and (imbalance_ratio < 0.60 or imbalance_ratio >= 0.66):
         return None
     
     # First bin confirmation (always true since we only use first bins)
@@ -85,8 +85,9 @@ def calculate_imbalance(
     num_bins: int = 2
 ) -> Optional[Dict[str, Any]]:
     """
-    Calculate volume imbalance in N bins from current price.
+    Calculate volume imbalance in 2 bins from current price.
     Uses CONTRARIAN approach: Bid volume > Ask → SHORT bias
+    Threshold: 60-66% (sweet spot from analysis)
     
     Args:
         agg_bids: Aggregated bid levels [(price, quantity), ...]
@@ -95,22 +96,13 @@ def calculate_imbalance(
         num_bins: Number of $100 bins to analyze (default: 2 = $200 range)
     
     Returns:
-        {
-            'bias': 'short' | 'long' | None,
-            'bid_volume': float,
-            'ask_volume': float,
-            'imbalance_ratio': float,  # Ratio of dominant side
-            'first_bid_volume': float,
-            'first_ask_volume': float,
-            'first_bin_confirmed': bool
-        }
-        or None if insufficient data
+        Signal dict or None if no signal
     """
     if not agg_bids or not agg_asks:
         return None
     
-    # Calculate range (num_bins × $100)
-    bin_range = num_bins * 100  # e.g., 2 bins = $200
+    # Calculate range (2 bins × $100 = $200)
+    bin_range = num_bins * 100
     
     # Filter bids within range (below current price)
     bid_volume = 0.0
@@ -150,10 +142,10 @@ def calculate_imbalance(
         imbalance_ratio = 0.5
         direction = None
     
-    # Require minimum imbalance strength for signal generation (60% = strong signal threshold)
-    # Note: This function is used for signal generation only
-    # For display purposes, we'll check threshold in the calling code
-    if direction and imbalance_ratio < 0.60:
+    # SWEET SPOT: 60-66% imbalance (analysis showed best PnL)
+    # Below 60%: too weak
+    # Above 66%: counter-productive
+    if direction and not (0.60 <= imbalance_ratio < 0.66):
         return None
     
     # First bin confirmation
@@ -309,6 +301,91 @@ def check_cvd_reversal(
         'reversal_direction': reversal_direction,
         'current_slope': current_slope,
         'previous_slope': previous_slope
+    }
+
+
+def calculate_hybrid_sq_imbalance(
+    agg_bids: List[Tuple[float, float]], 
+    agg_asks: List[Tuple[float, float]], 
+    current_price: float,
+    historical_agg_bids: List[Tuple[float, float]],
+    historical_agg_asks: List[Tuple[float, float]],
+    snapshot_history: List[Dict[str, Any]],
+    num_bins: int = 2
+) -> Optional[Dict[str, Any]]:
+    """
+    Calculate HYBRID_SQ imbalance - requires 2 consecutive snapshot signals + historical confluence.
+    
+    HYBRID_SQ Logic:
+    1. Two consecutive snapshot imbalances in same direction (55-66% threshold)
+    2. Historical aggregated data confluence (60-66% threshold)
+    3. All must be same direction
+    
+    Args:
+        agg_bids: Current snapshot aggregated bids
+        agg_asks: Current snapshot aggregated asks
+        current_price: Current mid price
+        historical_agg_bids: Historical aggregated bids
+        historical_agg_asks: Historical aggregated asks
+        snapshot_history: List of recent snapshot imbalances
+        num_bins: Number of bins to analyze (default: 2)
+    
+    Returns:
+        HYBRID_SQ signal dict or None
+    """
+    if not agg_bids or not agg_asks:
+        return None
+    
+    # Step 1: Check current snapshot imbalance (55-66% threshold)
+    current_imbalance = calculate_imbalance(agg_bids, agg_asks, current_price, num_bins)
+    if not current_imbalance:
+        return None
+    
+    # Override threshold for HYBRID_SQ (55-66% instead of 60-66%)
+    current_ratio = current_imbalance['imbalance_ratio']
+    if not (0.55 <= current_ratio < 0.66):
+        return None
+    
+    # Step 2: Check if we have a previous snapshot in same direction (55-66% threshold)
+    if len(snapshot_history) < 1:
+        return None
+    
+    previous_imbalance = snapshot_history[-1]
+    if (previous_imbalance['direction'] != current_imbalance['direction'] or
+        not (0.55 <= previous_imbalance['imbalance_ratio'] < 0.66)):
+        return None
+    
+    # Step 3: Check historical aggregated data confluence (60-66% threshold)
+    if not historical_agg_bids or not historical_agg_asks:
+        return None
+    
+    historical_imbalance = calculate_imbalance(
+        historical_agg_bids, historical_agg_asks, current_price, num_bins
+    )
+    if not historical_imbalance:
+        return None
+    
+    # Historical must be same direction and meet 60-66% threshold
+    if (historical_imbalance['direction'] != current_imbalance['direction'] or
+        not (0.60 <= historical_imbalance['imbalance_ratio'] < 0.66)):
+        return None
+    
+    # HYBRID_SQ confluence confirmed!
+    # Use average of current and historical ratios
+    avg_ratio = (current_imbalance['imbalance_ratio'] + historical_imbalance['imbalance_ratio']) / 2
+    
+    return {
+        'direction': current_imbalance['direction'],
+        'bid_volume': current_imbalance['bid_volume'],
+        'ask_volume': current_imbalance['ask_volume'],
+        'imbalance_ratio': avg_ratio,
+        'first_bid_volume': current_imbalance['first_bid_volume'],
+        'first_ask_volume': current_imbalance['first_ask_volume'],
+        'first_bin_confirmed': current_imbalance['first_bin_confirmed'],
+        'signal_type': 'HYBRID_SQ',
+        'snapshot_ratio': current_imbalance['imbalance_ratio'],
+        'historical_ratio': historical_imbalance['imbalance_ratio'],
+        'confluence_confirmed': True
     }
 
 

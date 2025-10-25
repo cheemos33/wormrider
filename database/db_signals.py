@@ -235,3 +235,42 @@ def update_signal_exit(signal_id: int, exit_price: float, exit_time: int, pnl: f
     finally:
         conn.close()
 
+def get_recent_signals_by_type(signal_type, limit=10):
+    """Get recent signals by type."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT * FROM signals 
+        WHERE signal_type = ? 
+        ORDER BY timestamp DESC 
+        LIMIT ?
+    """, (signal_type, limit))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    # Convert to list of dicts
+    signals = []
+    for row in rows:
+        signal = {
+            'id': row[0],
+            'signal_type': row[1],
+            'direction': row[2],
+            'entry_price': row[3],
+            'tp_price': row[4],
+            'sl_price': row[5],
+            'bid_volume': row[6],
+            'ask_volume': row[7],
+            'imbalance_ratio': row[8],
+            'cvd_slope': row[9],
+            'strength': row[10],
+            'status': row[11],
+            'timestamp': row[12],
+            'pnl': row[13],
+            'initial_bid_liquidity': row[14],
+            'initial_ask_liquidity': row[15]
+        }
+        signals.append(signal)
+    
+    return signals

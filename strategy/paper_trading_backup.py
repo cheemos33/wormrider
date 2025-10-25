@@ -39,14 +39,13 @@ class PaperTradingMonitor:
             self.monitor_thread.join(timeout=2.0)
     
     def _monitor_loop(self):
-        """Main monitoring loop - monitors all 4 strategies."""
+        """Main monitoring loop - monitors all 3 strategies."""
         while self.running:
             try:
                 # Get active signals for all 3 strategies
                 active_instant_xl = db_signals.get_active_signal('INSTANT_XL')
                 active_instant = db_signals.get_active_signal('INSTANT')
                 active_hybrid = db_signals.get_active_signal('HYBRID')
-                active_instant_sq = db_signals.get_active_signal("INSTANT_SQ")
                 
                 # Check exit conditions for each active signal
                 if active_instant_xl and self.current_price:
@@ -57,14 +56,14 @@ class PaperTradingMonitor:
                 
                 if active_hybrid and self.current_price:
                     self._check_exit_conditions(active_hybrid)
-
+                
                 if active_instant_sq and self.current_price:
                     self._check_exit_conditions(active_instant_sq)
                 
-                
                 # Also check pending signals for immediate entry (all 3 strategies)
                 pending_instant_xl = db_signals.get_pending_signal('INSTANT_XL')
-                pending_instant_sq = db_signals.get_active_signal("INSTANT_SQ")
+                active_instant_sq = db_signals.get_active_signal("INSTANT_SQ")
+                pending_instant_sq = db_signals.get_pending_signal("INSTANT_SQ")
                 pending_instant = db_signals.get_pending_signal('INSTANT')
                 pending_hybrid = db_signals.get_pending_signal('HYBRID')
                 

@@ -302,112 +302,6 @@ def update_dashboard(n_intervals):
                     print(f"   Average: {avg_ratio*100:.1f}%")
                     print(f"{'='*60}\n")
     
-            # === STRATEGY 4: INSTANT_SQ (Requires 2 consecutive INSTANT signals) ===
-
-            active_instant_sq = db_signals.get_active_signal("INSTANT_SQ")
-
-            pending_instant_sq = db_signals.get_pending_signal("INSTANT_SQ")
-
-            
-
-            if not active_instant_sq and not pending_instant_sq:
-
-                # Check for 2 consecutive INSTANT signals in same direction
-
-                recent_instant_signals = db_signals.get_recent_signals_by_type("INSTANT", limit=10)
-
-                current_time_ms = int(time.time() * 1000)
-
-                
-
-                consecutive_count = 0
-
-                last_direction = None
-
-                
-
-                for recent_signal in recent_instant_signals:
-
-                    try:
-
-                        recent_timestamp = int(recent_signal["timestamp"])
-
-                    except (ValueError, TypeError):
-
-                        continue
-
-                    
-
-                    if (current_time_ms - recent_timestamp) < 300000:  # 5 minutes
-
-                        if recent_signal["direction"] == last_direction:
-
-                            consecutive_count += 1
-
-                        else:
-
-                            consecutive_count = 1
-
-                            last_direction = recent_signal["direction"]
-
-                        
-
-                        if consecutive_count >= 2 and instant_imbalance:
-
-                            # Lower threshold for INSTANT_SQ: 55-66%
-
-                            if 0.55 <= instant_imbalance["imbalance_ratio"] <= 0.66:
-
-                                current_time_ms = int(time.time() * 1000)
-
-                                signal = {
-
-                                    "signal_type": "INSTANT_SQ",
-
-                                    "direction": instant_imbalance["direction"],
-
-                                    "entry_price": current_price,
-
-                                    "tp_price": current_price + 135.0 if instant_imbalance["direction"] == "long" else current_price - 135.0,
-
-                                    "sl_price": current_price - 75.0 if instant_imbalance["direction"] == "long" else current_price + 75.0,
-
-                                    "bid_volume": instant_imbalance["bid_volume"],
-
-                                    "ask_volume": instant_imbalance["ask_volume"],
-
-                                    "imbalance_ratio": instant_imbalance["imbalance_ratio"],
-
-                                    "timestamp": current_time_ms,
-
-                                    "entry_time": current_price,
-
-                                    "initial_bid_liquidity": instant_imbalance["bid_volume"],
-
-                                    "initial_ask_liquidity": instant_imbalance["ask_volume"]
-
-                                }
-
-                                db_signals.insert_signal(signal)
-
-                                print("\n" + "="*60)
-
-                                print("🔵 STRATEGY 4: INSTANT_SQ SIGNAL (DOUBLE INSTANT!)")
-
-                                direction = signal["direction"].upper()
-
-                                print("   Direction: " + direction)
-
-                                imbalance_pct = signal["imbalance_ratio"]*100
-
-                                print("   Imbalance: " + str(round(imbalance_pct, 1)) + "%")
-
-                                print("   Consecutive INSTANT signals: " + str(consecutive_count))
-
-                                print("="*60 + "\n")
-
-                                break
-
     # ========== END SIGNAL GENERATION ==========
     
     # ========== UI UPDATES ==========
@@ -525,16 +419,15 @@ def update_dashboard(n_intervals):
     stats_instant = db_signals.get_session_stats('INSTANT')
     stats_hybrid = db_signals.get_session_stats('HYBRID')
     
-    stats_instant_sq = db_signals.get_session_stats('INSTANT_SQ')
     # Format as "🟡strategy1, 🔴strategy2, 🟠strategy3"
-    total_trades = f"🟡{stats_instant_xl['total_trades']}, 🔴{stats_instant['total_trades']}, 🟠{stats_hybrid['total_trades']}, 🔵{stats_instant_sq['total_trades']}"
-    wins = f"🟡{stats_instant_xl['wins']}, 🔴{stats_instant['wins']}, 🟠{stats_hybrid['wins']}, 🔵{stats_instant_sq['wins']}"
-    losses = f"🟡{stats_instant_xl['losses']}, 🔴{stats_instant['losses']}, 🟠{stats_hybrid['losses']}, 🔵{stats_instant_sq['losses']}"
-    total_pnl = f"🟡${stats_instant_xl['total_pnl']:.2f}, 🔴${stats_instant['total_pnl']:.2f}, 🟠${stats_hybrid['total_pnl']:.2f}, 🔵${stats_instant_sq['total_pnl']:.2f}"
+    total_trades = f"🟡{stats_instant_xl['total_trades']}, 🔴{stats_instant['total_trades']}, 🟠{stats_hybrid['total_trades']}"
+    wins = f"🟡{stats_instant_xl['wins']}, 🔴{stats_instant['wins']}, 🟠{stats_hybrid['wins']}"
+    losses = f"🟡{stats_instant_xl['losses']}, 🔴{stats_instant['losses']}, 🟠{stats_hybrid['losses']}"
+    total_pnl = f"🟡${stats_instant_xl['total_pnl']:.2f}, 🔴${stats_instant['total_pnl']:.2f}, 🟠${stats_hybrid['total_pnl']:.2f}"
     
     # Calculate overall stats for win rate
-    total_all_trades = stats_instant_xl['total_trades'] + stats_instant['total_trades'] + stats_hybrid['total_trades'] + stats_instant_sq['total_trades']
-    total_all_wins = stats_instant_xl['wins'] + stats_instant['wins'] + stats_hybrid['wins'] + stats_instant_sq['wins']
+    total_all_trades = stats_instant_xl['total_trades'] + stats_instant['total_trades'] + stats_hybrid['total_trades']
+    total_all_wins = stats_instant_xl['wins'] + stats_instant['wins'] + stats_hybrid['wins']
     overall_win_rate = (total_all_wins / total_all_trades * 100) if total_all_trades > 0 else 0
     
     if total_all_trades > 0:
