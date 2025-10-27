@@ -143,9 +143,6 @@ def update_dashboard(n_intervals):
     
     active_hybrid = db_signals.get_active_signal('HYBRID')
     pending_hybrid = db_signals.get_pending_signal('HYBRID')
-
-    active_instant_sq = db_signals.get_active_signal("INSTANT_SQ")
-    pending_instant_sq = db_signals.get_pending_signal("INSTANT_SQ")
     
     # Generate signals for each strategy independently
     if not active_instant_xl and not pending_instant_xl:
@@ -199,213 +196,217 @@ def update_dashboard(n_intervals):
                     print(f"   Imbalance: {signal['imbalance_ratio']*100:.1f}%")
                     print(f"{'='*60}\n")
         
-    if not active_instant and not pending_instant:
-        # === STRATEGY 2: INSTANT (REST Snapshot) ===
-        from collectors.binance import fetch_orderbook_snapshot
-        instant_bids, instant_asks, _ = fetch_orderbook_snapshot("BTCUSDT")
-        instant_imbalance = None
-        
-        if instant_bids and instant_asks:
-            # Aggregate instant snapshot
-            from indicators.orderbook_aggregation import aggregate_bids_asks
-            agg_instant_bids, agg_instant_asks = aggregate_bids_asks(instant_bids, instant_asks, 100)
+        if not active_instant and not pending_instant:
+            # === STRATEGY 2: INSTANT (REST Snapshot) ===
+            from collectors.binance import fetch_orderbook_snapshot
+            instant_bids, instant_asks, _ = fetch_orderbook_snapshot("BTCUSDT")
+            instant_imbalance = None
             
-            instant_imbalance = orderbook_scalping.calculate_imbalance(
-                agg_bids=agg_instant_bids,
-                agg_asks=agg_instant_asks,
-                current_price=current_price,
-                num_bins=2
-            )
+            if instant_bids and instant_asks:
+                # Aggregate instant snapshot
+                from indicators.orderbook_aggregation import aggregate_bids_asks
+                agg_instant_bids, agg_instant_asks = aggregate_bids_asks(instant_bids, instant_asks, 100)
+                
+                instant_imbalance = orderbook_scalping.calculate_imbalance(
+                    agg_bids=agg_instant_bids,
+                    agg_asks=agg_instant_asks,
+                    current_price=current_price,
+                    num_bins=2
+                )
+                
+                if instant_imbalance:
+                    current_time_ms = int(time.time() * 1000)
+                    signal = {
+                        'signal_type': 'INSTANT',
+                        'direction': instant_imbalance['direction'],
+                        'entry_price': current_price,
+                        'tp_price': current_price + 50.0 if instant_imbalance["direction"] == "long" else current_price - 50.0,
+                        'sl_price': current_price - 40.0 if instant_imbalance["direction"] == "long" else current_price + 40.0,
+                        'bid_volume': instant_imbalance['bid_volume'],
+                        'ask_volume': instant_imbalance['ask_volume'],
+                        'imbalance_ratio': instant_imbalance['imbalance_ratio'],
+                        'cvd_slope': 'N/A',
+                        'strength': instant_imbalance['imbalance_ratio'],
+                        'status': 'pending',
+                        'timestamp': current_time_ms,
+                        'initial_bid_liquidity': instant_imbalance['bid_volume'],
+                        'initial_ask_liquidity': instant_imbalance['ask_volume']
+                    }
+                    db_signals.insert_signal(signal)
+                    print(f"\n{'='*60}")
+                    print(f"⚡ STRATEGY 2: INSTANT SIGNAL")
+                    print(f"   Direction: {signal['direction'].upper()}")
+                    print(f"   Imbalance: {signal['imbalance_ratio']*100:.1f}%")
+                    print(f"{'='*60}\n")
+        
+        if not active_hybrid and not pending_hybrid:
+            # === STRATEGY 3: HYBRID (Both must agree) ===
+            # Need to calculate both for hybrid
+            agg_snapshot = db.get_latest_aggregated_snapshot("BTCUSDT", 100)
+            historical_imbalance = None
+            if agg_snapshot:
+                historical_imbalance = orderbook_scalping.calculate_imbalance(
+                    agg_bids=agg_snapshot['bids'],
+                    agg_asks=agg_snapshot['asks'],
+                    current_price=current_price,
+                    num_bins=2
+                )
             
-            if instant_imbalance:
-                current_time_ms = int(time.time() * 1000)
-                signal = {
-                    'signal_type': 'INSTANT',
-                    'direction': instant_imbalance['direction'],
-                    'entry_price': current_price,
-                    'tp_price': current_price * (1 + config.INSTANT_TP_PCT) if instant_imbalance["direction"] == "long" else current_price * (1 - config.INSTANT_TP_PCT),
-                    'sl_price': current_price * (1 - config.INSTANT_SL_PCT) if instant_imbalance["direction"] == "long" else current_price * (1 + config.INSTANT_SL_PCT),
-                    'bid_volume': instant_imbalance['bid_volume'],
-                    'ask_volume': instant_imbalance['ask_volume'],
-                    'imbalance_ratio': instant_imbalance['imbalance_ratio'],
-                    'cvd_slope': 'N/A',
-                    'strength': instant_imbalance['imbalance_ratio'],
-                    'status': 'pending',
-                    'timestamp': current_time_ms,
-                    'initial_bid_liquidity': instant_imbalance['bid_volume'],
-                    'initial_ask_liquidity': instant_imbalance['ask_volume']
-                }
-                db_signals.insert_signal(signal)
-                print(f"\n{'='*60}")
-                print(f"⚡ STRATEGY 2: INSTANT SIGNAL")
-                print(f"   Direction: {signal['direction'].upper()}")
-                print(f"   Imbalance: {signal['imbalance_ratio']*100:.1f}%")
-                print(f"{'='*60}\n")
-        
-    if not active_hybrid and not pending_hybrid:
-        # === STRATEGY 3: HYBRID (Both must agree) ===
-        # Need to calculate both for hybrid
-        agg_snapshot = db.get_latest_aggregated_snapshot("BTCUSDT", 100)
-        historical_imbalance = None
-        if agg_snapshot:
-            historical_imbalance = orderbook_scalping.calculate_imbalance(
-                agg_bids=agg_snapshot['bids'],
-                agg_asks=agg_snapshot['asks'],
-                current_price=current_price,
-                num_bins=2
-            )
-        
-        from collectors.binance import fetch_orderbook_snapshot
-        instant_bids, instant_asks, _ = fetch_orderbook_snapshot("BTCUSDT")
-        instant_imbalance = None
-        if instant_bids and instant_asks:
-            from indicators.orderbook_aggregation import aggregate_bids_asks
-            agg_instant_bids, agg_instant_asks = aggregate_bids_asks(instant_bids, instant_asks, 100)
-            instant_imbalance = orderbook_scalping.calculate_imbalance(
-                agg_bids=agg_instant_bids,
-                agg_asks=agg_instant_asks,
-                current_price=current_price,
-                num_bins=2
-            )
-        
-        # === STRATEGY 3: HYBRID (Both must agree) ===
-        if historical_imbalance and instant_imbalance:
-            # Both must have same direction and both > 60%
-            if (historical_imbalance['direction'] == instant_imbalance['direction'] and
-                historical_imbalance['imbalance_ratio'] >= 0.60 and
-                instant_imbalance['imbalance_ratio'] >= 0.60):
-                
-                current_time_ms = int(time.time() * 1000)
-                # Use average of both for hybrid signal
-                avg_bid_vol = (historical_imbalance['bid_volume'] + instant_imbalance['bid_volume']) / 2
-                avg_ask_vol = (historical_imbalance['ask_volume'] + instant_imbalance['ask_volume']) / 2
-                avg_ratio = (historical_imbalance['imbalance_ratio'] + instant_imbalance['imbalance_ratio']) / 2
-                
-                signal = {
-                    'signal_type': 'HYBRID',
-                    'direction': historical_imbalance['direction'],
-                    'entry_price': current_price,
-                    'tp_price': current_price * (1 + config.INSTANT_XL_TP_PCT) if historical_imbalance["direction"] == "long" else current_price * (1 - config.INSTANT_XL_TP_PCT),
-                    'sl_price': current_price * (1 - config.INSTANT_XL_SL_PCT) if historical_imbalance["direction"] == "long" else current_price * (1 + config.INSTANT_XL_SL_PCT),
-                    'bid_volume': avg_bid_vol,
-                    'ask_volume': avg_ask_vol,
-                    'imbalance_ratio': avg_ratio,
-                    'cvd_slope': 'N/A',
-                    'strength': avg_ratio,
-                    'status': 'pending',
-                    'timestamp': current_time_ms,
-                    'initial_bid_liquidity': avg_bid_vol,
-                    'initial_ask_liquidity': avg_ask_vol
-                }
-                db_signals.insert_signal(signal)
-                print(f"\n{'='*60}")
-                print(f"🔥 STRATEGY 3: HYBRID SIGNAL (CONFLUENCE!)")
-                print(f"   Direction: {signal['direction'].upper()}")
-                print(f"   Historical: {historical_imbalance['imbalance_ratio']*100:.1f}% | Instant: {instant_imbalance['imbalance_ratio']*100:.1f}%")
-                print(f"   Average: {avg_ratio*100:.1f}%")
-                print(f"{'='*60}\n")
+            from collectors.binance import fetch_orderbook_snapshot
+            instant_bids, instant_asks, _ = fetch_orderbook_snapshot("BTCUSDT")
+            instant_imbalance = None
+            if instant_bids and instant_asks:
+                from indicators.orderbook_aggregation import aggregate_bids_asks
+                agg_instant_bids, agg_instant_asks = aggregate_bids_asks(instant_bids, instant_asks, 100)
+                instant_imbalance = orderbook_scalping.calculate_imbalance(
+                    agg_bids=agg_instant_bids,
+                    agg_asks=agg_instant_asks,
+                    current_price=current_price,
+                    num_bins=2
+                )
+            
+            # === STRATEGY 3: HYBRID (Both must agree) ===
+            if historical_imbalance and instant_imbalance:
+                # Both must have same direction and both > 60%
+                if (historical_imbalance['direction'] == instant_imbalance['direction'] and
+                    historical_imbalance['imbalance_ratio'] >= 0.60 and
+                    instant_imbalance['imbalance_ratio'] >= 0.60):
+                    
+                    current_time_ms = int(time.time() * 1000)
+                    # Use average of both for hybrid signal
+                    avg_bid_vol = (historical_imbalance['bid_volume'] + instant_imbalance['bid_volume']) / 2
+                    avg_ask_vol = (historical_imbalance['ask_volume'] + instant_imbalance['ask_volume']) / 2
+                    avg_ratio = (historical_imbalance['imbalance_ratio'] + instant_imbalance['imbalance_ratio']) / 2
+                    
+                    signal = {
+                        'signal_type': 'HYBRID',
+                        'direction': historical_imbalance['direction'],
+                        'entry_price': current_price,
+                        'tp_price': current_price * (1 + config.INSTANT_XL_TP_PCT) if historical_imbalance["direction"] == "long" else current_price * (1 - config.INSTANT_XL_TP_PCT),
+                        'sl_price': current_price * (1 - config.INSTANT_XL_SL_PCT) if historical_imbalance["direction"] == "long" else current_price * (1 + config.INSTANT_XL_SL_PCT),
+                        'bid_volume': avg_bid_vol,
+                        'ask_volume': avg_ask_vol,
+                        'imbalance_ratio': avg_ratio,
+                        'cvd_slope': 'N/A',
+                        'strength': avg_ratio,
+                        'status': 'pending',
+                        'timestamp': current_time_ms,
+                        'initial_bid_liquidity': avg_bid_vol,
+                        'initial_ask_liquidity': avg_ask_vol
+                    }
+                    db_signals.insert_signal(signal)
+                    print(f"\n{'='*60}")
+                    print(f"🔥 STRATEGY 3: HYBRID SIGNAL (CONFLUENCE!)")
+                    print(f"   Direction: {signal['direction'].upper()}")
+                    print(f"   Historical: {historical_imbalance['imbalance_ratio']*100:.1f}% | Instant: {instant_imbalance['imbalance_ratio']*100:.1f}%")
+                    print(f"   Average: {avg_ratio*100:.1f}%")
+                    print(f"{'='*60}\n")
     
-        # === STRATEGY 4: INSTANT_SQ (Requires 2 consecutive INSTANT signals) ===
+            # === STRATEGY 4: INSTANT_SQ (Requires 2 consecutive INSTANT signals) ===
 
+            active_instant_sq = db_signals.get_active_signal("INSTANT_SQ")
 
-        if not active_instant_sq and not pending_instant_sq:
+            pending_instant_sq = db_signals.get_pending_signal("INSTANT_SQ")
 
-            # Check for 2 consecutive INSTANT signals in same direction
+            
 
-            recent_instant_signals = db_signals.get_recent_signals_by_type("INSTANT", limit=10)
+            if not active_instant_sq and not pending_instant_sq:
 
-            current_time_ms = int(time.time() * 1000)
+                # Check for 2 consecutive INSTANT signals in same direction
 
+                recent_instant_signals = db_signals.get_recent_signals_by_type("INSTANT", limit=10)
 
-            consecutive_count = 0
+                current_time_ms = int(time.time() * 1000)
 
-            last_direction = None
+                
 
+                consecutive_count = 0
 
-            for recent_signal in recent_instant_signals:
+                last_direction = None
 
-                try:
+                
 
-                    recent_timestamp = int(recent_signal["timestamp"])
+                for recent_signal in recent_instant_signals:
 
-                except (ValueError, TypeError):
+                    try:
 
-                    continue
+                        recent_timestamp = int(recent_signal["timestamp"])
 
+                    except (ValueError, TypeError):
 
-                if (current_time_ms - recent_timestamp) < 300000:  # 5 minutes
-
-                    signal_dir = recent_signal["direction"]
-                    
-                    # Initialize or update
-                    if last_direction is None:
-                        last_direction = signal_dir
-                        consecutive_count = 1
-                    elif signal_dir == last_direction:
-                        consecutive_count += 1
-                    else:
-                        # Direction changed, restart count
-                        consecutive_count = 1
-                        last_direction = signal_dir
+                        continue
 
                     
 
-                        print(f"DEBUG: consecutive_count={consecutive_count}, instant_imbalance={instant_imbalance}")
-                    if consecutive_count >= 2 and instant_imbalance:
+                    if (current_time_ms - recent_timestamp) < 300000:  # 5 minutes
 
-                        # Lower threshold for INSTANT_SQ: 55-66%
+                        if recent_signal["direction"] == last_direction:
 
-                        if 0.55 <= instant_imbalance["imbalance_ratio"] <= 0.66:
+                            consecutive_count += 1
 
-                            current_time_ms = int(time.time() * 1000)
+                        else:
 
-                            signal = {
+                            consecutive_count = 1
 
-                                "signal_type": "INSTANT_SQ",
+                            last_direction = recent_signal["direction"]
 
-                                "direction": instant_imbalance["direction"],
+                        
 
-                                "entry_price": current_price,
+                        if consecutive_count >= 2 and instant_imbalance:
 
-                                "tp_price": current_price + 135.0 if instant_imbalance["direction"] == "long" else current_price - 135.0,
+                            # Lower threshold for INSTANT_SQ: 55-66%
 
-                                "sl_price": current_price - 75.0 if instant_imbalance["direction"] == "long" else current_price + 75.0,
+                            if 0.55 <= instant_imbalance["imbalance_ratio"] <= 0.66:
 
-                                "bid_volume": instant_imbalance["bid_volume"],
+                                current_time_ms = int(time.time() * 1000)
 
-                                "ask_volume": instant_imbalance["ask_volume"],
+                                signal = {
 
-                                "imbalance_ratio": instant_imbalance["imbalance_ratio"],
+                                    "signal_type": "INSTANT_SQ",
 
-                                "timestamp": current_time_ms,
+                                    "direction": instant_imbalance["direction"],
 
-                                "entry_time": current_price,
+                                    "entry_price": current_price,
 
-                                "initial_bid_liquidity": instant_imbalance["bid_volume"],
+                                    "tp_price": current_price + 135.0 if instant_imbalance["direction"] == "long" else current_price - 135.0,
 
-                                "initial_ask_liquidity": instant_imbalance["ask_volume"]
+                                    "sl_price": current_price - 75.0 if instant_imbalance["direction"] == "long" else current_price + 75.0,
 
-                            }
+                                    "bid_volume": instant_imbalance["bid_volume"],
 
-                            db_signals.insert_signal(signal)
+                                    "ask_volume": instant_imbalance["ask_volume"],
 
-                            print("\n" + "="*60)
+                                    "imbalance_ratio": instant_imbalance["imbalance_ratio"],
 
-                            print("🔵 STRATEGY 4: INSTANT_SQ SIGNAL (DOUBLE INSTANT!)")
+                                    "timestamp": current_time_ms,
 
-                            direction = signal["direction"].upper()
+                                    "entry_time": current_price,
 
-                            print("   Direction: " + direction)
+                                    "initial_bid_liquidity": instant_imbalance["bid_volume"],
 
-                            imbalance_pct = signal["imbalance_ratio"]*100
+                                    "initial_ask_liquidity": instant_imbalance["ask_volume"]
 
-                            print("   Imbalance: " + str(round(imbalance_pct, 1)) + "%")
+                                }
 
-                            print("   Consecutive INSTANT signals: " + str(consecutive_count))
+                                db_signals.insert_signal(signal)
 
-                            print("="*60 + "\n")
+                                print("\n" + "="*60)
 
-                            break
+                                print("🔵 STRATEGY 4: INSTANT_SQ SIGNAL (DOUBLE INSTANT!)")
+
+                                direction = signal["direction"].upper()
+
+                                print("   Direction: " + direction)
+
+                                imbalance_pct = signal["imbalance_ratio"]*100
+
+                                print("   Imbalance: " + str(round(imbalance_pct, 1)) + "%")
+
+                                print("   Consecutive INSTANT signals: " + str(consecutive_count))
+
+                                print("="*60 + "\n")
+
+                                break
 
     # ========== END SIGNAL GENERATION ==========
     
@@ -505,8 +506,6 @@ def update_dashboard(n_intervals):
                 strategy_emoji = "🔴"  # Red
             elif signal_type == 'HYBRID':
                 strategy_emoji = "🟠"  # Orange
-            elif signal_type == 'INSTANT_SQ':
-                strategy_emoji = "🔵"  # Blue
             else:
                 strategy_emoji = "⚪"  # White
             

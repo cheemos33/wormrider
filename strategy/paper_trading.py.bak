@@ -1,12 +1,9 @@
 """Paper trading monitor for tracking signal performance."""
 
 import time
-import os
-from strategy import live_trading
 import threading
 from typing import Optional, Dict, Any, List
 from database import db_signals
-from utils import json_logger
 
 
 class PaperTradingMonitor:
@@ -45,7 +42,7 @@ class PaperTradingMonitor:
         """Main monitoring loop - monitors all 4 strategies."""
         while self.running:
             try:
-                # Get active signals for all 4 strategies
+                # Get active signals for all 3 strategies
                 active_instant_xl = db_signals.get_active_signal('INSTANT_XL')
                 active_instant = db_signals.get_active_signal('INSTANT')
                 active_hybrid = db_signals.get_active_signal('HYBRID')
@@ -99,12 +96,6 @@ class PaperTradingMonitor:
         
         # Update to active (correct parameter order: signal_id, entry_price, entry_time)
         db_signals.update_signal_entry(signal_id, entry_price, entry_time)
-        json_logger.json_logger.log_entry(signal)
-        # Execute live trade if enabled
-        try:
-            live_trading.live_trading.execute_signal(signal)
-        except Exception as e:
-            print(f"❌ Live trading error: {e}")
         
         # Log entry
         direction = signal['direction']
