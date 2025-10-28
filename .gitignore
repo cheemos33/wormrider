@@ -36,3 +36,7 @@ build/
 .env
 .env
 .env.*
+.env.lighter
+.env.lighter
+.env.lighter
+.env.lighter
