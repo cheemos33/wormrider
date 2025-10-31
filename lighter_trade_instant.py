@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# HYBRID-only trading loop (direction-aware, single position)
+# INSTANT-only trading loop (direction-aware, single position)
 # MARKET orders (no-guard), client-side TP/SL watcher
 # Daily risk control + Startup watermark (ignore existing signal)
 
@@ -16,8 +16,8 @@ TARGET_NOTIONAL    = float(os.getenv("TARGET_NOTIONAL_USDC", "1.0"))
 ACCOUNT_LEVERAGE   = float(os.getenv("ACCOUNT_LEVERAGE", "10.0"))
 PRICE_HINT_USD     = float(os.getenv("PRICE_HINT_USD", "110000"))
 SAFETY_RATIO       = float(os.getenv("SAFETY_RATIO", "0.98"))
-TP_PCT             = float(os.getenv("TP_PCT", "0.02"))
-SL_PCT             = float(os.getenv("SL_PCT", "0.01"))
+TP_PCT             = float(os.getenv("TP_PCT_INS", "0.02"))
+SL_PCT             = float(os.getenv("SL_PCT_INS", "0.01"))
 WATCH_INTERVAL_SEC = float(os.getenv("WATCH_INTERVAL_SEC", "1.0"))
 WATCH_TIMEOUT_SEC  = float(os.getenv("WATCH_TIMEOUT_SEC", "3600"))
 SIGNAL_POLL_SEC    = float(os.getenv("SIGNAL_POLL_SEC", "2.0"))
@@ -38,7 +38,7 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)-7s | %(message)s",
     datefmt="%H:%M:%S",
 )
-log = logging.getLogger("hybrid-direction-dd")
+log = logging.getLogger("instant-direction-dd")
 
 # ========= SDK =========
 import lighter
@@ -107,10 +107,10 @@ async def fetch_active_signal() -> Optional[Dict[str, Any]]:
 
     if hasattr(db_signals, "get_active_signal"):
         try:
-            sig = await _maybe_await(db_signals.get_active_signal(signal_type="HYBRID"))
+            sig = await _maybe_await(db_signals.get_active_signal(signal_type="INSTANT"))
             return _to_dict_like(sig)
         except Exception as e:
-            log.warning(f"db_signals.get_active_signal(HYBRID) hata: {e}")
+            log.warning(f"db_signals.get_active_signal(INSTANT) hata: {e}")
     return None
 
 # ========= Market helpers =========
@@ -213,12 +213,12 @@ def approx_realized_pnl_usd(entry, exit, lots, base_lot_btc, direction):
     return (exit - entry) * qty_btc if direction=="long" else (entry - exit) * qty_btc
 
 # ========= MAIN LOOP =========
-async def hybrid_loop():
+async def instant_loop():
     if not MAINNET_URL or not PRIVATE_KEY.startswith("0x"):
         log.error("⚠️ Lighter parametreleri eksik."); sys.exit(1)
 
     log.info("="*74)
-    log.info("🚀 HYBRID loop + Daily Risk + Startup watermark")
+    log.info("🚀 INSTANT loop + Daily Risk + Startup watermark")
     log.info("="*74)
     log.info(f"Market={MARKET_ID} | Target=${TARGET_NOTIONAL} | Lev={ACCOUNT_LEVERAGE}x")
     log.info(f"TP/SL={TP_PCT:.2%}/{SL_PCT:.2%} | DD={MAX_DD_USD:.2f} | TPday={TARGET_PNL_USD:.2f}")
@@ -274,7 +274,7 @@ async def hybrid_loop():
                         await asyncio.sleep(SIGNAL_POLL_SEC); continue
 
                     if direction in ("long","short"):
-                        log.info("✨ Yeni HYBRID sinyal tespit edildi.")
+                        log.info("✨ Yeni INSTANT sinyal tespit edildi.")
                         mark,_,_,base_lot,_ = await fetch_mark_and_params(ord_api, MARKET_ID, PRICE_HINT_USD)
                         base_qty_btc = (TARGET_NOTIONAL / mark) * SAFETY_RATIO
                         lots = max(1,int(base_qty_btc/base_lot))
@@ -322,6 +322,6 @@ async def hybrid_loop():
 
 if __name__ == "__main__":
     try:
-        asyncio.run(hybrid_loop())
+        asyncio.run(instant_loop())
     except KeyboardInterrupt:
         print("\nInterrupted.")
