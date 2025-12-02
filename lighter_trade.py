@@ -54,8 +54,8 @@ RESET_HOUR         = int(os.getenv("RESET_HOUR", "9"))
 RESET_MINUTE       = int(os.getenv("RESET_MINUTE", "0"))
 
 # ---- İstatistik tabanlı günlük durdurma eşikleri ----
-LOSS_MINUS_WIN_STOP = int(os.getenv("LOSS_MINUS_WIN_STOP", "3"))  # loss - win ≥ 3 → stop
-WIN_MINUS_LOSS_STOP = int(os.getenv("WIN_MINUS_LOSS_STOP", "2"))  # win - loss ≥ 2 → stop
+LOSS_MINUS_WIN_STOP = int(os.getenv("LOSS_MINUS_WIN_STOP", "5"))  # loss - win ≥ 3 → stop
+WIN_MINUS_LOSS_STOP = int(os.getenv("WIN_MINUS_LOSS_STOP", "3"))  # win - loss ≥ 2 → stop
 
 # ---------------- LOGGING ----------------
 logging.basicConfig(

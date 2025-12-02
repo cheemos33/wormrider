@@ -65,9 +65,9 @@ class PaperTradingMonitor:
                     self._check_exit_conditions(active_instant_sq)
                 
                 
-                # Also check pending signals for immediate entry (all 3 strategies)
+                # Also check pending signals for immediate entry (all 4 strategies)
                 pending_instant_xl = db_signals.get_pending_signal('INSTANT_XL')
-                pending_instant_sq = db_signals.get_active_signal("INSTANT_SQ")
+                pending_instant_sq = db_signals.get_pending_signal("INSTANT_SQ")
                 pending_instant = db_signals.get_pending_signal('INSTANT')
                 pending_hybrid = db_signals.get_pending_signal('HYBRID')
                 

@@ -142,7 +142,7 @@ RESET_MINUTE       = int(os.getenv("RESET_MINUTE", "0"))
 LOSS_MINUS_WIN_STOP = int(os.getenv("LOSS_MINUS_WIN_STOP", "3"))  # loss - win ≥ 3 → stop
 WIN_MINUS_LOSS_STOP = int(os.getenv("WIN_MINUS_LOSS_STOP", "2"))  # win - loss ≥ 2 → stop
 
-DAILY_PROFIT_TARGET_PCT = float(os.getenv("DAILY_PROFIT_TARGET_PCT", "0.035"))  # %5
+DAILY_PROFIT_TARGET_PCT = float(os.getenv("DAILY_PROFIT_TARGET_PCT", "0.05"))  # %5
 
 
 # ---------------- LOGGING ----------------

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Bot Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 10px 0;
+        }
+        .profit { color: #28a745; }
+        .loss { color: #dc3545; }
+        .chart-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 10px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="text-center my-4">🚀 Hyperliquid Trading Bot Dashboard</h1>
+            </div>
+        </div>
+        
+        <div class="row">
+            <!-- Status Cards -->
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <h5>Account Balance</h5>
+                    <h3 id="balance">$999.00</h3>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <h5>Total PnL</h5>
+                    <h3 id="total-pnl" class="profit">$0.00</h3>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <h5>Daily PnL</h5>
+                    <h3 id="daily-pnl" class="profit">$0.00</h3>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <h5>Open Positions</h5>
+                    <h3 id="positions">0</h3>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <!-- Price Chart -->
+            <div class="col-md-8">
+                <div class="chart-container">
+                    <h4>ETH Price & Performance</h4>
+                    <div id="price-chart"></div>
+                </div>
+            </div>
+            
+            <!-- Strategy Status -->
+            <div class="col-md-4">
+                <div class="chart-container">
+                    <h4>Strategy Status</h4>
+                    <div id="strategy-status">
+                        <div class="d-flex justify-content-between">
+                            <span>RSI Strategy:</span>
+                            <span class="badge bg-success">Active</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Bollinger Bands:</span>
+                            <span class="badge bg-success">Active</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>MACD Strategy:</span>
+                            <span class="badge bg-success">Active</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <!-- Recent Trades -->
+            <div class="col-12">
+                <div class="chart-container">
+                    <h4>Recent Trades</h4>
+                    <div id="trades-table">
+                        <p class="text-muted">No trades yet...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Socket.IO
+        const socket = io();
+        
+        // Chart data
+        let priceData = [];
+        let performanceData = [];
+        
+        // Initialize price chart
+        const priceChart = document.getElementById('price-chart');
+        Plotly.newPlot(priceChart, [{
+            x: [],
+            y: [],
+            type: 'scatter',
+            mode: 'lines',
+            name: 'ETH Price',
+            line: { color: '#1f77b4' }
+        }], {
+            title: 'ETH Price Over Time',
+            xaxis: { title: 'Time' },
+            yaxis: { title: 'Price ($)' },
+            margin: { t: 50, r: 50, b: 50, l: 50 }
+        });
+        
+        // Socket event handlers
+        socket.on('price_update', function(data) {
+            priceData.push(data);
+            if (priceData.length > 100) {
+                priceData = priceData.slice(-100);
+            }
+            
+            // Update chart
+            Plotly.update(priceChart, {
+                x: [priceData.map(d => d.timestamp)],
+                y: [priceData.map(d => d.price)]
+            });
+        });
+        
+        socket.on('performance_update', function(data) {
+            // Update metrics
+            document.getElementById('total-pnl').textContent = '$' + data.total_pnl.toFixed(2);
+            document.getElementById('daily-pnl').textContent = '$' + data.daily_pnl.toFixed(2);
+            document.getElementById('positions').textContent = data.positions;
+            
+            // Update colors
+            const totalPnl = document.getElementById('total-pnl');
+            const dailyPnl = document.getElementById('daily-pnl');
+            
+            totalPnl.className = data.total_pnl >= 0 ? 'profit' : 'loss';
+            dailyPnl.className = data.daily_pnl >= 0 ? 'profit' : 'loss';
+        });
+        
+        socket.on('status_update', function(data) {
+            // Update balance
+            document.getElementById('balance').textContent = '$' + data.portfolio.total_unrealized_pnl.toFixed(2);
+        });
+        
+        socket.on('connect', function() {
+            console.log('Connected to dashboard');
+        });
+    </script>
+</body>
+</html>

@@ -25,3 +25,25 @@ python app.py
 # chmod +x restart.sh
 # ./restart.sh
 
+
+.venv/bin/activate    
+pip install --upgrade pip       
+pip install lighter-sdk python-dotenv
+python lighter_market_buy.py
+
+
+PYTHONPATH=. dotenv -f .env.lighter run -- python lighter_trade_trailing_time_.py
+
+
+sqlite3 -cmd ".headers on" -cmd ".mode column" wormrider.db "
+SELECT
+  datetime(timestamp/1000,'unixepoch','localtime') AS ts_local,
+  id, signal_type, direction,
+  entry_price, tp_price, sl_price, exit_reason
+FROM signals
+WHERE signal_type = 'HYBRID'
+ORDER BY timestamp DESC;
+">hybrid_signals_nov10.csv
+
+
+

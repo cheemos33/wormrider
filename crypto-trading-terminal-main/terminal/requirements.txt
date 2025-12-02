@@ -1,0 +1,22 @@
+# Trading Terminal - Screen 1 Requirements
+
+# Core Dashboard Framework
+dash==2.14.2
+dash-bootstrap-components==1.5.0
+plotly==5.18.0
+
+# Data Processing
+pandas>=2.2.0  # Compatible with Python 3.13
+
+# API & Utilities
+requests==2.31.0
+python-dotenv==1.0.0
+aiohttp==3.9.1
+
+# Additional utilities
+numpy==1.26.2
+
+# Hyperliquid SDK
+hyperliquid-python-sdk>=0.2.0
+eth-account>=0.10.0
+

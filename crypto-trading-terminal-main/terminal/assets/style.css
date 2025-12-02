@@ -1,0 +1,190 @@
+/* Custom Dark Theme Styling for Trading Terminal */
+
+/* Matrix Theme - Global Styles */
+body {
+    background-color: #000000 !important;
+    font-family: 'Courier New', monospace;
+    color: #00ff41 !important;
+}
+
+/* Header Styling */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+}
+
+/* Matrix Card Styling */
+.card {
+    background-color: #000000 !important;
+    border: 2px solid #00ff41 !important;
+    border-radius: 8px;
+    box-shadow: 0 0 20px #00ff41 !important;
+}
+
+.card-header {
+    background-color: #000000 !important;
+    border-bottom: 2px solid #00ff41 !important;
+    padding: 15px;
+}
+
+.card-body {
+    padding: 15px;
+}
+
+/* Button Styling */
+.btn-success {
+    background-color: #4caf50 !important;
+    border-color: #4caf50 !important;
+    font-weight: bold;
+}
+
+.btn-success:hover {
+    background-color: #45a049 !important;
+    border-color: #45a049 !important;
+    transform: scale(1.05);
+    transition: all 0.2s ease;
+}
+
+/* Matrix Dropdown Styling */
+.Select-control {
+    background-color: #000000 !important;
+    border-color: #003311 !important;
+    color: #00ff41 !important;
+}
+
+.Select-menu-outer {
+    background-color: #000000 !important;
+    border-color: #00ff41 !important;
+}
+
+.Select-option {
+    background-color: #000000 !important;
+    color: #00ff41 !important;
+}
+
+.Select-option:hover {
+    background-color: #003311 !important;
+    color: #00ff00 !important;
+}
+
+.Select-value-label {
+    color: #00ff41 !important;
+}
+
+.Select-placeholder {
+    color: #00ff41 !important;
+    opacity: 0.6;
+}
+
+/* Matrix Table Styling */
+.dash-table-container {
+    background-color: #000000 !important;
+}
+
+.dash-spreadsheet {
+    background-color: #000000 !important;
+}
+
+.dash-cell {
+    background-color: #000000 !important;
+    color: #00ff41 !important;
+    border: 1px solid #003311 !important;
+}
+
+.dash-header {
+    background-color: #000000 !important;
+    color: #00ff41 !important;
+    font-weight: bold !important;
+    border: 1px solid #00ff41 !important;
+}
+
+.dash-cell:hover {
+    background-color: #001a00 !important;
+    cursor: pointer;
+}
+
+/* Scrollbar Styling - Matrix Theme */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #000000;
+    border: 1px solid #003311;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #00ff41;
+    border-radius: 4px;
+    box-shadow: 0 0 5px #00ff41;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #00ff00;
+    box-shadow: 0 0 10px #00ff00;
+}
+
+/* Matrix Chart Container */
+.js-plotly-plot {
+    border-radius: 8px;
+    border: 2px solid #00ff41 !important;
+    box-shadow: 0 0 20px #00ff41 !important;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.card {
+    animation: fadeIn 0.5s ease-in;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 10px;
+    }
+    
+    h1 {
+        font-size: 1.5rem;
+    }
+}
+
+/* Custom color classes */
+.text-positive {
+    color: #4caf50 !important;
+    font-weight: bold;
+}
+
+.text-negative {
+    color: #f44336 !important;
+    font-weight: bold;
+}
+
+.text-cyan {
+    color: #00d4ff !important;
+}
+
+/* Loading animation */
+.loading {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        text-shadow: 0 0 10px #00ff00;
+    }
+    50% {
+        opacity: 0.3;
+        text-shadow: 0 0 5px #00ff00;
+    }
+}
+

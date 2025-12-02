@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  crypto-trading-terminal:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: crypto-trading-terminal
+    ports:
+      - "8050:8050"
+    environment:
+      - DASHBOARD_HOST=0.0.0.0
+      - DASHBOARD_PORT=8050
+      - UPDATE_INTERVAL_SECONDS=60
+      - DASHBOARD_DEBUG=false
+    env_file:
+      - .env
+    volumes:
+      # Persist data and logs
+      - ./terminal/data:/app/terminal/data
+      - ./terminal/logs:/app/terminal/logs
+      # Optional: Mount config for easy editing
+      - ./terminal/config.py:/app/terminal/config.py
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8050/_alive"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - trading-network
+
+  # Optional: Redis for caching (if needed in future)
+  redis:
+    image: redis:7-alpine
+    container_name: trading-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - trading-network
+
+networks:
+  trading-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local
